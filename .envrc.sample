@@ -1,0 +1,2 @@
+export RATCHET_WRENCH_DATABASE="projects/projectname-123456/instances/your-instance/databases/your-db"
+export GOOGLE_APPLICATION_CREDENTIALS="app_credentials.json"
