@@ -7,8 +7,13 @@ defmodule RatchetWrench.MixProject do
       version: "0.0.1",
       elixir: "~> 1.9",
       description: "RatchetWrench is a easily use Google Cloud Spanner by Elixir.",
+      package: [
+        maintainers: ["Your Name"],
+        licenses: ["MIT"],
+        links: %{"GitHub" => "https://github.com/ma2gedev/hex_sample"}
+     ],
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
     ]
   end
 
