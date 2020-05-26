@@ -28,7 +28,7 @@ defmodule RatchetWrench.MixProject do
   defp deps do
     [
       {:google_api_spanner, "~> 0.20"},
-      {:goth, "~> 1.1.0"},
+      {:goth, "~> 1.2.0"},
       {:inflex, "~> 2.0.0" },
       {:elixir_uuid, "~> 1.2" },
       {:faker, "~> 0.13"},
