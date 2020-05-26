@@ -14,10 +14,15 @@ defmodule RatchetWrench do
   end
 
   def token() do
-    case Goth.Token.for_scope("https://www.googleapis.com/auth/cloud-platform") do
+    case Goth.Token.for_scope(token_scope()) do
       {:ok, token} -> token
-      {:error, _} -> raise "goth config error. Check env `GCP_CREDENTIALS` or config"
+      {:error, reason} -> IO.inspect reason
+      # {:error, _} -> raise "goth config error. Check env `GCP_CREDENTIALS` or config"
     end
+  end
+
+  def token_scope() do
+    System.get_env("RATCHET_WRENCH_TOKEN_SCOPE") || "https://www.googleapis.com/auth/spanner.data"
   end
 
   def connection(token) do
@@ -27,7 +32,8 @@ defmodule RatchetWrench do
   def create_session(connection) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(connection, database()) do
       {:ok, session} -> session
-      {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+      {:error, reason} -> IO.inspect reason
+      # {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
     end
   end
 
