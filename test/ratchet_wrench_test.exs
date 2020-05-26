@@ -2,6 +2,39 @@ defmodule RatchetWrenchTest do
   use ExUnit.Case
   doctest RatchetWrench
 
+  test "update ddl" do
+    ddl_singer = "CREATE TABLE data (
+                   id STRING(MAX) NOT NULL,
+                   string STRING(MAX),
+                   bool BOOL,
+                   int INT64,
+                   float FLOAT64,
+                   time_stamp TIMESTAMP,
+                   date DATE,
+                 ) PRIMARY KEY(id)"
+
+    ddl_data = "CREATE TABLE singers (
+                 id STRING(1024) NOT NULL,
+                 first_name STRING(1024),
+                 last_name STRING(1024),
+                 birth_date DATE,
+                 created_at TIMESTAMP,
+                 updated_at TIMESTAMP,
+                 ) PRIMARY KEY(id)"
+
+    ddl_list = [ddl_singer, ddl_data]
+    {:ok, operation} = RatchetWrench.update_ddl(ddl_list)
+    assert operation.error == nil
+  end
+
+  test "update ddl, error syntax" do
+    ddl_error = "Error Syntax DDL"
+    ddl_list = [ddl_error]
+    {:error, reason} = RatchetWrench.update_ddl(ddl_list)
+    assert reason["error"]["code"] == 400
+    assert reason["error"]["message"] == "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
+  end
+
   test "get token" do
     assert RatchetWrench.token().token !=  nil
     assert RatchetWrench.token().expires > :os.system_time(:second)

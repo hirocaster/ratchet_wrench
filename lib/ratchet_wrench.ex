@@ -24,12 +24,23 @@ defmodule RatchetWrench do
   end
 
   def session(connection) do
-    database = System.get_env("RATCHET_WRENCH_DATABASE") || Application.fetch_env(:ratchet_wrench, :database)
-
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(connection, database) do
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(connection, database()) do
       {:ok, session} -> session
       {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
     end
+  end
+
+  def update_ddl(ddl_list) do
+    connection = RatchetWrench.connection(RatchetWrench.token)
+    json = %{statements: ddl_list}
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_update_ddl(connection, database(), [{:body, json}]) do
+      {:ok, operation} -> {:ok, operation}
+      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+    end
+  end
+
+  defp database() do
+    System.get_env("RATCHET_WRENCH_DATABASE") || Application.fetch_env(:ratchet_wrench, :database)
   end
 
   def begin_transaction(connection, session) do
