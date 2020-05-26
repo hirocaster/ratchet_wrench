@@ -2,7 +2,6 @@ defmodule RatchetWrenchTest do
   use ExUnit.Case
   doctest RatchetWrench
 
-
   describe "Operation DDL" do
     setup do
       System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
