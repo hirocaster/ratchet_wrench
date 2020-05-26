@@ -44,10 +44,12 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.connection(RatchetWrench.token) != nil
   end
 
-  test "get session" do
+  test "get session/delete session" do
     token = RatchetWrench.token
     connection = RatchetWrench.connection(token)
-    assert RatchetWrench.session(connection) != nil
+    session = RatchetWrench.create_session(connection)
+    assert session != nil
+    {:ok, _} = RatchetWrench.delete_session(connection, session)
   end
 
   test "Connection check CloudSpanner" do

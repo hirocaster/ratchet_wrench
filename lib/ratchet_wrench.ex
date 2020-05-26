@@ -6,9 +6,10 @@ defmodule RatchetWrench do
   def execute() do
     token = RatchetWrench.token
     connection = RatchetWrench.connection(token)
-    session = RatchetWrench.session(connection)
+    session = RatchetWrench.create_session(connection)
     json = %{sql: "SELECT 1"}
     {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
+    {:ok, _} = RatchetWrench.delete_session(connection, session)
     {:ok, result_set}
   end
 
@@ -23,10 +24,17 @@ defmodule RatchetWrench do
     GoogleApi.Spanner.V1.Connection.new(token.token)
   end
 
-  def session(connection) do
+  def create_session(connection) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(connection, database()) do
       {:ok, session} -> session
       {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+    end
+  end
+
+  def delete_session(connection, session) do
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_delete(connection, session.name) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -70,23 +78,28 @@ defmodule RatchetWrench do
   def select_execute_sql(sql) do
     json = %{sql: sql}
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.session(connection)
+    session = RatchetWrench.create_session(connection)
 
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-      {:ok, result_set} -> {:ok, result_set}
-      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+      {:ok, result_set} ->
+        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, result_set}
+      {:error, reason} ->
+        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:error, Poison.Parser.parse!(reason.body, %{})}
     end
   end
 
   def execute_sql(sql, seqno \\ 1) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.session(connection)
+    session = RatchetWrench.create_session(connection)
     {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
     json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql}
 
     case do_execute_sql(connection, session, transaction, json) do
       {:ok, result_set} ->
         RatchetWrench.commit_transaction(connection, session, transaction)
+        {:ok, _} = RatchetWrench.delete_session(connection, session)
         {:ok, result_set}
       {:error, reason} -> {:error, reason}
     end
@@ -94,7 +107,8 @@ defmodule RatchetWrench do
 
   def do_execute_sql(connection, session, transaction, json) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-      {:ok, result_set} -> {:ok, result_set}
+      {:ok, result_set} ->
+        {:ok, result_set}
       {:error, reason} -> error_googleapi(connection, session, transaction, reason)
     end
   end
@@ -104,8 +118,11 @@ defmodule RatchetWrench do
     reason_json = Poison.Parser.parse!(reason.body, %{})
 
     case rollback_transaction(connection, session, transaction) do
-      {:ok, _} -> {:error, reason_json}
+      {:ok, _} ->
+        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:error, reason_json}
       {:error, reason} ->
+        {:ok, _} = RatchetWrench.delete_session(connection, session)
         {:error, reason} # TODO: logging can not rollback
     end
   end
@@ -141,7 +158,7 @@ defmodule RatchetWrench do
 
   def transaction_execute_sql(sql_list) when is_list(sql_list) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.session(connection)
+    session = RatchetWrench.create_session(connection)
     {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
 
     result_set_list = Enum.map(Enum.with_index(sql_list), fn({sql, seqno}) ->
@@ -164,14 +181,16 @@ defmodule RatchetWrench do
       end
     end)
     RatchetWrench.commit_transaction(connection, session, transaction)
+    {:ok, _} = RatchetWrench.delete_session(connection, session)
     result_set_list
   end
 
   def sql(sql) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.session(connection)
+    session = RatchetWrench.create_session(connection)
     json = %{sql: sql}
     {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
+    {:ok, _} = RatchetWrench.delete_session(connection, session)
     result_set
   end
 end
