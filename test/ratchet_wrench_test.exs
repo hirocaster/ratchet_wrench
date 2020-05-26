@@ -37,51 +37,6 @@ defmodule RatchetWrenchTest do
     assert last_name == nil
   end
 
-  # test "execute INSERT sql" do
-  #   result_set = RatchetWrench.execute_sql("INSERT INTO Singers(SingerId, FirstName, LastName) VALUES(2,'Catalina', 'Smith')")
-  #   assert result_set != nil
-
-  #   connection = RatchetWrench.token |> RatchetWrench.connection
-  #   session = RatchetWrench.session(connection)
-  #   sql = "SELECT * FROM Singers"
-  #   json = %{sql: sql}
-
-  #   {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-
-  #   assert result_set != nil
-  #   assert result_set.rows == [["1", "Marc", "Richards", nil, nil], ["2", "Catalina", "Smith", nil, nil], ["3", "Kena", "", nil, "1961-04-01"]]
-  # end
-
-  # test "execute UPDATE sql" do
-  #   result_set = RatchetWrench.execute_sql("UPDATE Singers SET FirstName = \"Cat\" WHERE SingerId = 2")
-  #   assert result_set != nil
-
-  #   connection = RatchetWrench.token |> RatchetWrench.connection
-  #   session = RatchetWrench.session(connection)
-  #   sql = "SELECT * FROM Singers"
-  #   json = %{sql: sql}
-
-  #   {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-
-  #   assert result_set != nil
-  #   assert result_set.rows == [["1", "Marc", "Richards", nil, nil], ["2", "Cat", "Smith", nil, nil], ["3", "Kena", "", nil, "1961-04-01"]]
-  # end
-
-  # test "execute DELETE sql" do
-  #   result_set = RatchetWrench.execute_sql("DELETE FROM Singers WHERE SingerId = 2")
-  #   assert result_set != nil
-
-  #   connection = RatchetWrench.token |> RatchetWrench.connection
-  #   session = RatchetWrench.session(connection)
-  #   sql = "SELECT * FROM Singers"
-  #   json = %{sql: sql}
-
-  #   {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-
-  #   assert result_set != nil
-  #   assert result_set.rows == [["1", "Marc", "Richards", nil, nil], ["3", "Kena", "", nil, "1961-04-01"]]
-  # end
-
   test "SQL INSERT/UPDATE/DELETE" do
     {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers")
     before_rows_count = Enum.count(result_set.rows)
