@@ -10,7 +10,7 @@ defmodule RatchetWrench.MixProject do
       package: [
         maintainers: ["Your Name"],
         licenses: ["MIT"],
-        links: %{"GitHub" => "https://github.com/ma2gedev/hex_sample"}
+        links: %{"GitHub" => "https://github.com/hirocaster/ratchet_wrench"}
      ],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
