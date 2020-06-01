@@ -18,7 +18,7 @@ defmodule RatchetWrench.RepoTest do
                  id STRING(1024) NOT NULL,
                  first_name STRING(1024),
                  last_name STRING(1024),
-                 created_at TIMESTAMP,
+                 inserted_at TIMESTAMP,
                  updated_at TIMESTAMP,
                  ) PRIMARY KEY(id)"
 
@@ -86,7 +86,7 @@ defmodule RatchetWrench.RepoTest do
     now_timestamp = DateTime.utc_now
 
     assert new_singer.id == nil
-    assert new_singer.created_at == nil
+    assert new_singer.inserted_at == nil
     assert new_singer.updated_at == nil
 
     {:ok, struct} = RatchetWrench.Repo.insert(new_singer)
@@ -95,8 +95,8 @@ defmodule RatchetWrench.RepoTest do
     assert byte_size(struct.id) == 36 # UUIDv4
     assert struct.first_name == "example_first_name_auto_index"
 
-    assert now_timestamp < struct.created_at
-    assert struct.created_at == struct.updated_at
+    assert now_timestamp < struct.inserted_at
+    assert struct.inserted_at == struct.updated_at
 
     sql = "SELECT * FROM singers WHERE id = '#{struct.id}'"
     {:ok, raw_result_set} = RatchetWrench.select_execute_sql(sql)
@@ -110,7 +110,7 @@ defmodule RatchetWrench.RepoTest do
 
     result = RatchetWrench.Repo.get(Singer, struct.id)
     assert result.id == struct.id
-    assert result.created_at.time_zone == "Asia/Tokyo"
+    assert result.inserted_at.time_zone == "Asia/Tokyo"
     assert result.updated_at.time_zone == "Asia/Tokyo"
 
     {:ok, result_set} = RatchetWrench.Repo.delete(Singer, struct.id)

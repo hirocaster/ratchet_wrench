@@ -36,7 +36,7 @@ defmodule RatchetWrench.Repo do
     now_timestamp = RatchetWrench.DateTime.now()
 
     map = set_index_value(struct)
-          |> set_created_at_value(now_timestamp)
+          |> set_inserted_at_value(now_timestamp)
           |> set_updated_at_value(now_timestamp)
           |> Map.from_struct
 
@@ -65,7 +65,7 @@ defmodule RatchetWrench.Repo do
     now_timestamp = RatchetWrench.DateTime.now()
 
     map = set_index_value(struct)
-          |> set_created_at_value(now_timestamp)
+          |> set_inserted_at_value(now_timestamp)
           |> set_updated_at_value(now_timestamp)
           |> Map.from_struct
 
@@ -196,9 +196,9 @@ defmodule RatchetWrench.Repo do
     end
   end
 
-  def set_created_at_value(struct, now_timestamp \\ RatchetWrench.DateTime.now) do
-    if Map.has_key?(struct, :created_at) do
-      Map.merge(struct, %{created_at: now_timestamp})
+  def set_inserted_at_value(struct, now_timestamp \\ RatchetWrench.DateTime.now) do
+    if Map.has_key?(struct, :inserted_at) do
+      Map.merge(struct, %{inserted_at: now_timestamp})
     else
       struct
     end

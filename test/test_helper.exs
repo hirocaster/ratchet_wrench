@@ -11,7 +11,7 @@ defmodule Singer do
     attributes id: {"STRING", nil},
       first_name: {"STRING", nil},
       last_name: {"STRING", nil},
-      created_at: {"TIMESTAMP", nil},
+      inserted_at: {"TIMESTAMP", nil},
       updated_at: {"TIMESTAMP", nil}
   end
 end

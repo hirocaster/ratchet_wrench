@@ -19,7 +19,7 @@ defmodule RatchetWrenchTest do
                  id STRING(1024) NOT NULL,
                  first_name STRING(1024),
                  last_name STRING(1024),
-                 created_at TIMESTAMP,
+                 inserted_at TIMESTAMP,
                  updated_at TIMESTAMP,
                  ) PRIMARY KEY(id)"
 
