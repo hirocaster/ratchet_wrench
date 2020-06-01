@@ -76,9 +76,12 @@ defmodule RatchetWrench do
   def commit_transaction(connection, session, transaction) do
     RatchetWrench.Logger.info("Commit transaction request, transaction_id: #{transaction.id}")
     json = %{transactionId: transaction.id}
-    {:ok, commit_response} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_commit(connection, session.name, [{:body, json}])
-    RatchetWrench.Logger.info("Commited transaction, transaction_id: #{transaction.id}, time_stamp: #{commit_response.commitTimestamp}")
-    commit_response
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_commit(connection, session.name, [{:body, json}]) do
+      {:ok, commit_response} ->
+        RatchetWrench.Logger.info("Commited transaction, transaction_id: #{transaction.id}, time_stamp: #{commit_response.commitTimestamp}")
+        {:ok, commit_response}
+      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+    end
   end
 
   def select_execute_sql(sql) do

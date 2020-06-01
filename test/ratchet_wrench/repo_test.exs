@@ -1,17 +1,71 @@
 defmodule RatchetWrench.RepoTest do
   use ExUnit.Case
 
-  setup do
+  setup_all do
+    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+
+    ddl_singer = "CREATE TABLE data (
+                   id STRING(MAX) NOT NULL,
+                   string STRING(MAX),
+                   bool BOOL,
+                   int INT64,
+                   float FLOAT64,
+                   time_stamp TIMESTAMP,
+                   date DATE,
+                   ) PRIMARY KEY(id)"
+
+    ddl_data = "CREATE TABLE singers (
+                 id STRING(1024) NOT NULL,
+                 first_name STRING(1024),
+                 last_name STRING(1024),
+                 created_at TIMESTAMP,
+                 updated_at TIMESTAMP,
+                 ) PRIMARY KEY(id)"
+
+    ddl_list = [ddl_singer, ddl_data]
+    {:ok, _} = RatchetWrench.update_ddl(ddl_list)
+
+    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.data")
+
+    Process.sleep(10_000) # Wait DML
+    TestHelper.check_ready_table(%Singer{})
+    TestHelper.check_ready_table(%Data{})
+
+    RatchetWrench.Repo.insert(%Singer{id: "1", first_name: "Marc", last_name: "Richards"})
+    RatchetWrench.Repo.insert(%Singer{id: "3", first_name: "Kena"})
+
+    1..100
+    |> Enum.map(fn(_) ->
+      Task.async(fn ->
+                  new_data = %Data{string: Faker.String.base64(1_024_000),
+                                   bool: List.first(Enum.take_random([true, false], 1)),
+                                   int: List.first(Enum.take_random(0..9, 1)),
+                                   float: 99.9,
+                                   date: Faker.Date.date_of_birth(),
+                                   time_stamp: Faker.DateTime.forward(365)
+                                  }
+        TestHelper.insert_loop(new_data)
+      end)
+    end)
+    |> Enum.map(&Task.await &1, 60000)
+
     now_tz = System.get_env("TZ")
     System.put_env("TZ", "Asia/Tokyo")
 
-    on_exit(fn ->
+    on_exit fn ->
+      RatchetWrench.Repo.delete(Singer, "1")
+      RatchetWrench.Repo.delete(Singer, "3")
+
+      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+      {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
+                                           "DROP TABLE data"])
+
       if now_tz == nil do
         System.delete_env("TZ")
       else
         System.put_env("TZ", now_tz)
       end
-    end)
+    end
   end
 
   test "get id 3" do
@@ -20,7 +74,6 @@ defmodule RatchetWrench.RepoTest do
     assert id_3_singer.__struct__ == Singer
     assert id_3_singer.id == "3"
     assert id_3_singer.first_name == "Kena"
-    assert id_3_singer.birth_date == ~D[1961-04-01]
   end
 
   test "get not found id" do
@@ -36,7 +89,7 @@ defmodule RatchetWrench.RepoTest do
     assert new_singer.created_at == nil
     assert new_singer.updated_at == nil
 
-    struct = RatchetWrench.Repo.insert(new_singer)
+    {:ok, struct} = RatchetWrench.Repo.insert(new_singer)
 
     assert struct.id != nil
     assert byte_size(struct.id) == 36 # UUIDv4
@@ -60,7 +113,9 @@ defmodule RatchetWrench.RepoTest do
     assert result.created_at.time_zone == "Asia/Tokyo"
     assert result.updated_at.time_zone == "Asia/Tokyo"
 
-    assert {:ok} == RatchetWrench.Repo.delete(Singer, struct.id)
+    {:ok, result_set} = RatchetWrench.Repo.delete(Singer, struct.id)
+
+    assert result_set.stats.rowCountExact == "1"
     assert RatchetWrench.Repo.get(Singer, struct.id) == nil
   end
 
@@ -97,8 +152,7 @@ defmodule RatchetWrench.RepoTest do
 
   test "get all records from Data" do
     all_data_list = RatchetWrench.Repo.all(%Data{})
-    assert Enum.count(all_data_list) == 146_646
-    assert List.last(all_data_list).string == "D40OgpG9"
+    assert Enum.count(all_data_list) == 100
   end
 
   test "get all records and where from Singer" do
@@ -132,21 +186,6 @@ defmodule RatchetWrench.RepoTest do
     assert reason["error"]["message"] =~ "Syntax error: Unexpected "
   end
 
-  # test "Add fake data" do
-  #   Enum.each(1..100000, fn(x) ->
-  #     IO.puts x
-  #     new_data = %Data{string: Faker.String.base64,
-  #                      bool: List.first(Enum.take_random([True, False], 1)),
-  #                      int: List.first(Enum.take_random(0..9, 1)),
-  #                      float: 99.9,
-  #                      date: Faker.Date.date_of_birth(),
-  #                      time_stamp: Faker.DateTime.forward(365)
-  #                     }
-  #     struct = RatchetWrench.Repo.insert(new_data)
-  #     assert struct.id != nil
-  #   end)
-  # end
-
   test "convert value to SQL value" do
     assert RatchetWrench.Repo.convert_value(nil) == "NULL"
     assert RatchetWrench.Repo.convert_value(true) == "TRUE"
@@ -156,27 +195,21 @@ defmodule RatchetWrench.RepoTest do
   end
 
   test "Update records in transaction" do
-    raw_data = RatchetWrench.Repo.get(Data, "00000493-55f8-42ea-9a12-fe691a86825f")
-    assert raw_data.id == "00000493-55f8-42ea-9a12-fe691a86825f"
-    assert raw_data.int == 9
-
-    update_data_map = Map.merge(raw_data, %{int: raw_data.int - 1})
-    update_sql = RatchetWrench.Repo.update_sql(update_data_map)
-
     new_singer = %Singer{id: "test in transaction", first_name: "new singer in transaction"}
 
     insert_sql = RatchetWrench.Repo.insert_sql(new_singer)
 
-    transaction_sql_list = [update_sql, insert_sql]
+    update_data_map = Map.merge(new_singer, %{last_name: "update name"})
+    update_sql = RatchetWrench.Repo.update_sql(update_data_map)
 
+    transaction_sql_list = [insert_sql, update_sql]
     RatchetWrench.transaction_execute_sql(transaction_sql_list)
 
     get_new_singer = RatchetWrench.Repo.get(Singer, "test in transaction")
     assert get_new_singer.id == "test in transaction"
     assert get_new_singer.first_name == "new singer in transaction"
-    assert RatchetWrench.Repo.get(Data, "00000493-55f8-42ea-9a12-fe691a86825f").int == 8
+    assert get_new_singer.last_name == "update name"
 
-    RatchetWrench.Repo.set(raw_data)
     RatchetWrench.Repo.delete(Singer, "test in transaction")
   end
 end

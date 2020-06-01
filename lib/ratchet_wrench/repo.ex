@@ -53,8 +53,10 @@ defmodule RatchetWrench.Repo do
     end)
 
     sql = "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
-    {:ok, _} = RatchetWrench.execute_sql(sql)
-    Map.merge(struct, map)
+    case RatchetWrench.execute_sql(sql) do
+      {:ok, _} -> {:ok, Map.merge(struct, map)}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def insert_sql(struct) do
@@ -98,9 +100,10 @@ defmodule RatchetWrench.Repo do
     set_value_string = Enum.join(set_value_list, ", ")
 
     sql = "UPDATE #{table_name} SET #{set_value_string} WHERE #{index_name} = #{convert_value(index_value)}"
-
-    {:ok, _} = RatchetWrench.execute_sql(sql)
-    {:ok, result_struct}
+    case RatchetWrench.execute_sql(sql) do
+      {:ok, _} -> {:ok, result_struct}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def update_sql(struct) do
@@ -126,12 +129,10 @@ defmodule RatchetWrench.Repo do
     table_name = to_table_name(struct)
 
     sql = "DELETE FROM #{table_name} WHERE id = #{convert_value(index_value)}"
-    {:ok, result_set} = RatchetWrench.execute_sql(sql)
 
-    if result_set.stats.rowCountExact == "1" do
-      {:ok}
-    else
-      {:error}
+    case RatchetWrench.execute_sql(sql) do
+      {:ok, result_set} -> {:ok, result_set}
+      {:error, reason} -> {:error, reason}
     end
   end
 

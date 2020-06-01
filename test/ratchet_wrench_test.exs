@@ -2,37 +2,56 @@ defmodule RatchetWrenchTest do
   use ExUnit.Case
   doctest RatchetWrench
 
+  setup_all do
+    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+
+    ddl_singer = "CREATE TABLE data (
+                   id STRING(MAX) NOT NULL,
+                   string STRING(MAX),
+                   bool BOOL,
+                   int INT64,
+                   float FLOAT64,
+                   time_stamp TIMESTAMP,
+                   date DATE,
+                   ) PRIMARY KEY(id)"
+
+    ddl_data = "CREATE TABLE singers (
+                 id STRING(1024) NOT NULL,
+                 first_name STRING(1024),
+                 last_name STRING(1024),
+                 created_at TIMESTAMP,
+                 updated_at TIMESTAMP,
+                 ) PRIMARY KEY(id)"
+
+    ddl_list = [ddl_singer, ddl_data]
+    {:ok, _} = RatchetWrench.update_ddl(ddl_list)
+
+    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.data")
+
+    Process.sleep(10_000) # Wait DML
+    TestHelper.check_ready_table(%Singer{})
+    TestHelper.check_ready_table(%Data{})
+
+    RatchetWrench.Repo.insert(%Singer{id: "1", first_name: "Marc", last_name: "Richards"})
+    RatchetWrench.Repo.insert(%Singer{id: "3", first_name: "Kena"})
+
+    on_exit fn ->
+      RatchetWrench.Repo.delete(Singer, "1")
+      RatchetWrench.Repo.delete(Singer, "3")
+
+      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+      {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
+                                           "DROP TABLE data"])
+    end
+  end
+
   describe "Operation DDL" do
     setup do
       System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+
       on_exit fn ->
         System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.data")
       end
-    end
-
-    test "update ddl" do
-      ddl_singer = "CREATE TABLE data (
-                     id STRING(MAX) NOT NULL,
-                     string STRING(MAX),
-                     bool BOOL,
-                     int INT64,
-                     float FLOAT64,
-                     time_stamp TIMESTAMP,
-                     date DATE,
-                   ) PRIMARY KEY(id)"
-
-      ddl_data = "CREATE TABLE singers (
-                   id STRING(1024) NOT NULL,
-                   first_name STRING(1024),
-                   last_name STRING(1024),
-                   birth_date DATE,
-                   created_at TIMESTAMP,
-                   updated_at TIMESTAMP,
-                   ) PRIMARY KEY(id)"
-
-      ddl_list = [ddl_singer, ddl_data]
-      {:ok, operation} = RatchetWrench.update_ddl(ddl_list)
-      assert operation.error == nil
     end
 
     test "update ddl, error syntax" do
