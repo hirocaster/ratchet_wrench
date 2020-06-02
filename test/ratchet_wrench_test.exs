@@ -6,22 +6,22 @@ defmodule RatchetWrenchTest do
     System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
 
     ddl_singer = "CREATE TABLE data (
-                   id STRING(MAX) NOT NULL,
+                   data_id STRING(36) NOT NULL,
                    string STRING(MAX),
                    bool BOOL,
                    int INT64,
                    float FLOAT64,
                    time_stamp TIMESTAMP,
                    date DATE,
-                   ) PRIMARY KEY(id)"
+                   ) PRIMARY KEY(data_id)"
 
     ddl_data = "CREATE TABLE singers (
-                 id STRING(1024) NOT NULL,
+                 singer_id STRING(36) NOT NULL,
                  first_name STRING(1024),
                  last_name STRING(1024),
                  inserted_at TIMESTAMP,
                  updated_at TIMESTAMP,
-                 ) PRIMARY KEY(id)"
+                 ) PRIMARY KEY(singer_id)"
 
     ddl_list = [ddl_singer, ddl_data]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
@@ -32,8 +32,8 @@ defmodule RatchetWrenchTest do
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
 
-    RatchetWrench.Repo.insert(%Singer{id: "1", first_name: "Marc", last_name: "Richards"})
-    RatchetWrench.Repo.insert(%Singer{id: "3", first_name: "Kena"})
+    RatchetWrench.Repo.insert(%Singer{singer_id: "1", first_name: "Marc", last_name: "Richards"})
+    RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
 
     on_exit fn ->
       RatchetWrench.Repo.delete(Singer, "1")
@@ -90,12 +90,12 @@ defmodule RatchetWrenchTest do
     {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers")
     assert result_set != nil
 
-    [id, first_name, last_name | _] = List.first(result_set.rows)
-    assert id == "1"
+    [singer_id, first_name, last_name | _] = List.first(result_set.rows)
+    assert singer_id == "1"
     assert first_name == "Marc"
     assert last_name == "Richards"
-    [id, first_name, last_name | _] = List.last(result_set.rows)
-    assert id == "3"
+    [singer_id, first_name, last_name | _] = List.last(result_set.rows)
+    assert singer_id == "3"
     assert first_name == "Kena"
     assert last_name == nil
   end
@@ -104,18 +104,18 @@ defmodule RatchetWrenchTest do
     {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers")
     before_rows_count = Enum.count(result_set.rows)
 
-    {:ok, result_set} = RatchetWrench.execute_sql("INSERT INTO singers(id, first_name, last_name) VALUES('2', 'Catalina', 'Smith')")
+    {:ok, result_set} = RatchetWrench.execute_sql("INSERT INTO singers(singer_id, first_name, last_name) VALUES('2', 'Catalina', 'Smith')")
     assert result_set != nil
 
     result_set = RatchetWrench.sql("SELECT * FROM singers")
     assert result_set != nil
 
     Enum.with_index(result_set.rows, 1)
-    |> Enum.map(fn({raw_list, id}) ->
-      assert List.first(raw_list) == "#{id}"
+    |> Enum.map(fn({raw_list, singer_id}) ->
+      assert List.first(raw_list) == "#{singer_id}"
     end)
 
-    {:ok, result_set} = RatchetWrench.execute_sql("DELETE FROM singers WHERE id = '2'")
+    {:ok, result_set} = RatchetWrench.execute_sql("DELETE FROM singers WHERE singer_id = '2'")
     assert result_set != nil
     assert result_set.stats.rowCountExact == "1"
 
@@ -136,31 +136,31 @@ defmodule RatchetWrenchTest do
 
     result_set = List.first(result_set_list)
 
-    [id, first_name, last_name | _] = List.first(result_set.rows)
-    assert id == "1"
+    [singer_id, first_name, last_name | _] = List.first(result_set.rows)
+    assert singer_id == "1"
     assert first_name == "Marc"
     assert last_name == "Richards"
-    [id, first_name, last_name | _] = List.last(result_set.rows)
-    assert id == "3"
+    [singer_id, first_name, last_name | _] = List.last(result_set.rows)
+    assert singer_id == "3"
     assert first_name == "Kena"
     assert last_name == nil
 
     result_set = List.last(result_set_list)
-    [id, first_name, last_name | _] = List.first(result_set.rows)
-    assert id == "1"
+    [singer_id, first_name, last_name | _] = List.first(result_set.rows)
+    assert singer_id == "1"
     assert first_name == "Marc"
     assert last_name == "Richards"
-    [id, first_name, last_name | _] = List.last(result_set.rows)
-    assert id == "3"
+    [singer_id, first_name, last_name | _] = List.last(result_set.rows)
+    assert singer_id == "3"
     assert first_name == "Kena"
     assert last_name == nil
   end
 
   test "SQL SELECT/INSERT/UPDATE/DELETE in Transaction" do
     select_sql = "SELECT * FROM singers"
-    insert_sql = "INSERT INTO singers(id, first_name, last_name) VALUES('2','Catalina', 'Smith')"
-    update_sql = "UPDATE singers SET first_name = \"Cat\" WHERE id = '2'"
-    delete_sql = "DELETE FROM singers WHERE id = '2'"
+    insert_sql = "INSERT INTO singers(singer_id, first_name, last_name) VALUES('2','Catalina', 'Smith')"
+    update_sql = "UPDATE singers SET first_name = \"Cat\" WHERE singer_id = '2'"
+    delete_sql = "DELETE FROM singers WHERE singer_id = '2'"
 
     sql_list = [select_sql, insert_sql, select_sql, update_sql, select_sql, delete_sql, select_sql]
 
@@ -188,8 +188,8 @@ defmodule RatchetWrenchTest do
     assert Enum.count(select_result_set.rows) == 3
 
     {update_raw, _} = List.pop_at(select_result_set.rows, 1)
-    [id, first_name, last_name | _] = update_raw
-    assert id == "2"
+    [singer_id, first_name, last_name | _] = update_raw
+    assert singer_id == "2"
     assert first_name == "Cat"
     assert last_name == "Smith"
 
@@ -199,12 +199,12 @@ defmodule RatchetWrenchTest do
     [select_result_set | tail_set_list] = tail_set_list
     assert select_result_set != nil
 
-    [id, first_name, last_name | _] = List.first(select_result_set.rows)
-    assert id == "1"
+    [singer_id, first_name, last_name | _] = List.first(select_result_set.rows)
+    assert singer_id == "1"
     assert first_name == "Marc"
     assert last_name == "Richards"
-    [id, first_name, last_name | _] = List.last(select_result_set.rows)
-    assert id == "3"
+    [singer_id, first_name, last_name | _] = List.last(select_result_set.rows)
+    assert singer_id == "3"
     assert first_name == "Kena"
     assert last_name == nil
 

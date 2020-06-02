@@ -8,7 +8,8 @@ defmodule Singer do
   use RatchetWrench.Model
 
   schema do
-    attributes id: {"STRING", nil},
+    pk :singer_id
+    attributes singer_id: {"STRING", nil},
       first_name: {"STRING", nil},
       last_name: {"STRING", nil},
       inserted_at: {"TIMESTAMP", nil},
@@ -24,7 +25,8 @@ defmodule Data do
   use RatchetWrench.Model
 
   schema do
-    attributes id: {"STRING", nil},
+    pk :data_id
+    attributes data_id: {"STRING", nil},
       string: {"STRING", ""},
       bool: {"BOOL", nil },
       int: {"INT64", nil},
@@ -35,12 +37,15 @@ defmodule Data do
 end
 
 defmodule TestHelper do
-    def check_ready_table(struct) do
-    test_data = Map.merge(struct, %{id: "test_data"})
+  def check_ready_table(struct) do
+    pk_name = struct.__struct__.__pk__
+    pk_value = "test_data"
+    {map, _} = Code.eval_string("%{#{pk_name}: '#{pk_value}'}")
+    test_data = Map.merge(struct, map)
 
     {:ok, _} = insert_loop(test_data)
-    {:ok, _} = get_loop(test_data.__struct__, test_data.id)
-    {:ok, _} = delete_loop(test_data.__struct__, test_data.id)
+    {:ok, _} = get_loop(test_data.__struct__, pk_value)
+    {:ok, _} = delete_loop(test_data.__struct__, pk_value)
   end
 
   def insert_loop(struct) do
@@ -61,22 +66,22 @@ defmodule TestHelper do
     end
   end
 
-  def get_loop(module, id) do
-    result = RatchetWrench.Repo.get(module, id)
+  def get_loop(module, pk_value) do
+    result = RatchetWrench.Repo.get(module, pk_value)
     if result == nil do
       Process.sleep(1000)
-      get_loop(module, id)
+      get_loop(module, pk_value)
     else
       {:ok, result}
     end
   end
 
-  def delete_loop(module, id) do
-    case RatchetWrench.Repo.delete(module, id) do
+  def delete_loop(module, pk_value) do
+    case RatchetWrench.Repo.delete(module, pk_value) do
       {:ok, result} -> {:ok, result}
       {:error} ->
         Process.sleep(1000)
-        delete_loop(module, id)
+        delete_loop(module, pk_value)
     end
   end
 end

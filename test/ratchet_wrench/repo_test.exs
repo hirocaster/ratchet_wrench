@@ -5,22 +5,22 @@ defmodule RatchetWrench.RepoTest do
     System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
 
     ddl_singer = "CREATE TABLE data (
-                   id STRING(MAX) NOT NULL,
+                   data_id STRING(36) NOT NULL,
                    string STRING(MAX),
                    bool BOOL,
                    int INT64,
                    float FLOAT64,
                    time_stamp TIMESTAMP,
                    date DATE,
-                   ) PRIMARY KEY(id)"
+                   ) PRIMARY KEY(data_id)"
 
     ddl_data = "CREATE TABLE singers (
-                 id STRING(1024) NOT NULL,
+                 singer_id STRING(36) NOT NULL,
                  first_name STRING(1024),
                  last_name STRING(1024),
                  inserted_at TIMESTAMP,
                  updated_at TIMESTAMP,
-                 ) PRIMARY KEY(id)"
+                 ) PRIMARY KEY(singer_id)"
 
     ddl_list = [ddl_singer, ddl_data]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
@@ -31,8 +31,8 @@ defmodule RatchetWrench.RepoTest do
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
 
-    RatchetWrench.Repo.insert(%Singer{id: "1", first_name: "Marc", last_name: "Richards"})
-    RatchetWrench.Repo.insert(%Singer{id: "3", first_name: "Kena"})
+    RatchetWrench.Repo.insert(%Singer{singer_id: "1", first_name: "Marc", last_name: "Richards"})
+    RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
 
     1..100
     |> Enum.map(fn(_) ->
@@ -72,7 +72,7 @@ defmodule RatchetWrench.RepoTest do
     id_3_singer = RatchetWrench.Repo.get(Singer, "3")
 
     assert id_3_singer.__struct__ == Singer
-    assert id_3_singer.id == "3"
+    assert id_3_singer.singer_id == "3"
     assert id_3_singer.first_name == "Kena"
   end
 
@@ -81,24 +81,24 @@ defmodule RatchetWrench.RepoTest do
     assert RatchetWrench.Repo.get(Singer, not_exist_id) == nil
   end
 
-  test "insert/get/delete new record at auto index value" do
-    new_singer = %Singer{first_name: "example_first_name_auto_index"}
+  test "insert/get/delete new record at auto pk value" do
+    new_singer = %Singer{first_name: "example_first_name_auto_pk"}
     now_timestamp = DateTime.utc_now
 
-    assert new_singer.id == nil
+    assert new_singer.singer_id == nil
     assert new_singer.inserted_at == nil
     assert new_singer.updated_at == nil
 
     {:ok, struct} = RatchetWrench.Repo.insert(new_singer)
 
-    assert struct.id != nil
-    assert byte_size(struct.id) == 36 # UUIDv4
-    assert struct.first_name == "example_first_name_auto_index"
+    assert struct.singer_id != nil
+    assert byte_size(struct.singer_id) == 36 # UUIDv4
+    assert struct.first_name == "example_first_name_auto_pk"
 
     assert now_timestamp < struct.inserted_at
     assert struct.inserted_at == struct.updated_at
 
-    sql = "SELECT * FROM singers WHERE id = '#{struct.id}'"
+    sql = "SELECT * FROM singers WHERE singer_id = '#{struct.singer_id}'"
     {:ok, raw_result_set} = RatchetWrench.select_execute_sql(sql)
 
     raw_update_at_string = raw_result_set.rows |> List.first |> List.last
@@ -108,15 +108,15 @@ defmodule RatchetWrench.RepoTest do
     raw_timestamp_string = String.slice("#{raw_update_at_string}", 11, 5)
     assert utc_now_string == raw_timestamp_string
 
-    result = RatchetWrench.Repo.get(Singer, struct.id)
-    assert result.id == struct.id
+    result = RatchetWrench.Repo.get(Singer, struct.singer_id)
+    assert result.singer_id == struct.singer_id
     assert result.inserted_at.time_zone == "Asia/Tokyo"
     assert result.updated_at.time_zone == "Asia/Tokyo"
 
-    {:ok, result_set} = RatchetWrench.Repo.delete(Singer, struct.id)
+    {:ok, result_set} = RatchetWrench.Repo.delete(Singer, struct.singer_id)
 
     assert result_set.stats.rowCountExact == "1"
-    assert RatchetWrench.Repo.get(Singer, struct.id) == nil
+    assert RatchetWrench.Repo.get(Singer, struct.singer_id) == nil
   end
 
   test "update record" do
@@ -126,7 +126,7 @@ defmodule RatchetWrench.RepoTest do
     assert update_id_3_singer.first_name == "Hana"
 
     {:ok, updated_id3_singer} = RatchetWrench.Repo.set(update_id_3_singer)
-    assert id_3_singer.id == updated_id3_singer.id
+    assert id_3_singer.singer_id == updated_id3_singer.singer_id
     assert updated_id3_singer.first_name == "Hana"
 
     updated_new_id_3_singer = RatchetWrench.Repo.get(Singer, "3")
@@ -135,7 +135,7 @@ defmodule RatchetWrench.RepoTest do
     update_new_id_3_singer = Map.merge(updated_new_id_3_singer, %{first_name: "Kena"})
 
     {:ok, updated_new_id_3_singer} = RatchetWrench.Repo.set(update_new_id_3_singer)
-    assert updated_new_id_3_singer.id == "3"
+    assert updated_new_id_3_singer.singer_id == "3"
     assert updated_new_id_3_singer.first_name == "Kena"
 
     singer_kena = RatchetWrench.Repo.get(Singer, "3")
@@ -147,7 +147,7 @@ defmodule RatchetWrench.RepoTest do
     assert Enum.count(singers) == 2
     assert List.last(singers).__struct__ == Singer
     assert List.last(singers).first_name == "Kena"
-    assert List.last(singers).id == "3"
+    assert List.last(singers).singer_id == "3"
   end
 
   test "get all records from Data" do
@@ -156,20 +156,20 @@ defmodule RatchetWrench.RepoTest do
   end
 
   test "get all records and where from Singer" do
-    singer_list = RatchetWrench.Repo.all(%Singer{}, "id = '3'")
-    assert List.first(singer_list).id == "3"
+    singer_list = RatchetWrench.Repo.all(%Singer{}, "singer_id = '3'")
+    assert List.first(singer_list).singer_id == "3"
     assert List.first(singer_list).first_name == "Kena"
   end
 
   test "not found all records and where from Singer" do
-    singer_list = RatchetWrench.Repo.all(%Singer{}, "id = 'not found id'")
+    singer_list = RatchetWrench.Repo.all(%Singer{}, "singer_id = 'not found id'")
     assert singer_list == []
   end
 
   test "get where records" do
     value = "Marc"
     {:ok, singers_list} = RatchetWrench.Repo.where(%Singer{}, "first_name = '#{value}'")
-    assert List.first(singers_list).id == "1"
+    assert List.first(singers_list).singer_id == "1"
     assert List.first(singers_list).first_name == "Marc"
   end
 
@@ -194,8 +194,13 @@ defmodule RatchetWrench.RepoTest do
     assert RatchetWrench.Repo.convert_value(99.9) == "99.9"
   end
 
+  test ".set_pk_value/1" do
+    singer = RatchetWrench.Repo.set_pk_value(%Singer{})
+    assert singer.singer_id != nil
+  end
+
   test "Update records in transaction" do
-    new_singer = %Singer{id: "test in transaction", first_name: "new singer in transaction"}
+    new_singer = %Singer{singer_id: "test in transaction", first_name: "new singer in transaction"}
 
     insert_sql = RatchetWrench.Repo.insert_sql(new_singer)
 
@@ -206,7 +211,7 @@ defmodule RatchetWrench.RepoTest do
     RatchetWrench.transaction_execute_sql(transaction_sql_list)
 
     get_new_singer = RatchetWrench.Repo.get(Singer, "test in transaction")
-    assert get_new_singer.id == "test in transaction"
+    assert get_new_singer.singer_id == "test in transaction"
     assert get_new_singer.first_name == "new singer in transaction"
     assert get_new_singer.last_name == "update name"
 

@@ -9,7 +9,8 @@ defmodule RatchetWrench.Model do
       use RatchetWrench.Model
 
       schema do
-        attributes id: {"STRING", nil},
+        pk :data_id
+        attributes data_id: {"STRING", nil},
           string: {"STRING", ""},
           bool: {"BOOL", nil },
           int: {"INT64", nil},
@@ -34,6 +35,7 @@ defmodule RatchetWrench.Model do
       default_table_name = "#{table_name}"
 
       Module.put_attribute(__MODULE__, :table_name, default_table_name)
+      Module.register_attribute(__MODULE__, :pk, accumulate: false)
       Module.register_attribute(__MODULE__, :attributes, accumulate: true)
 
       import RatchetWrench.Model
@@ -51,9 +53,12 @@ defmodule RatchetWrench.Model do
       table_name = Module.get_attribute(__ENV__.module, :table_name)
       Module.put_attribute(__ENV__.module, :table_name, table_name)
 
+      pk = Module.get_attribute(__ENV__.module, :pk)
+      Module.put_attribute(__ENV__.module, :pk, pk)
 
       Module.eval_quoted __ENV__, [
         RatchetWrench.Model.__defstruct__(__ENV__.module),
+        RatchetWrench.Model.__valid_define_pk__!(__ENV__.module),
         RatchetWrench.Model.__def_helper_funcs__(__ENV__.module)
       ]
     end
@@ -67,13 +72,28 @@ defmodule RatchetWrench.Model do
     end
   end
 
+  def __valid_define_pk__!(mod) do
+    attributes = Module.get_attribute(mod, :attributes)
+    pk         = Module.get_attribute(mod, :pk)
+
+    result = attributes
+    |> Enum.map(fn {name, {_type, _default}} -> "#{name}" == "#{pk}" end)
+    |> Enum.any?
+
+    if result == false do
+      raise "Not define pk in #{mod} module schema"
+    end
+  end
+
   def __def_helper_funcs__(mod) do
     table_name           = Module.get_attribute(mod, :table_name)
     attributes           = Module.get_attribute(mod, :attributes)
+    pk                   = Module.get_attribute(mod, :pk)
 
     quote do
       def __table_name__, do: unquote(table_name)
       def __attributes__, do: unquote(attributes)
+      def __pk__, do: unquote(pk)
     end
   end
 
@@ -105,5 +125,15 @@ defmodule RatchetWrench.Model do
 
   def __attribute__(mod, name, type, default) do
     Module.put_attribute(mod, :attributes, {name, {type, default}})
+  end
+
+  defmacro pk(pk) do
+    quote bind_quoted: [pk: pk] do
+      RatchetWrench.Model.__pk__(__MODULE__, pk)
+    end
+  end
+
+  def __pk__(mod, pk) do
+    Module.put_attribute(mod, :pk, pk)
   end
 end
