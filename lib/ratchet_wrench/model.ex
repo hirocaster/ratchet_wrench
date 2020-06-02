@@ -31,6 +31,9 @@ defmodule RatchetWrench.Model do
       |> Atom.to_string
       |> String.split(".")
       |> List.last
+      |> Macro.underscore
+      |> String.downcase
+      |> Inflex.pluralize
 
       default_table_name = "#{table_name}"
 

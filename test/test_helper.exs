@@ -36,6 +36,20 @@ defmodule Data do
   end
 end
 
+defmodule UserItem do
+  @moduledoc """
+  Sample model module for unit test.
+  """
+
+  use RatchetWrench.Model
+
+  schema do
+    pk :user_item_id
+    attributes user_item_id: {"STRING", nil},
+      name: {"STRING", ""}
+  end
+end
+
 defmodule TestHelper do
   def check_ready_table(struct) do
     pk_name = struct.__struct__.__pk__

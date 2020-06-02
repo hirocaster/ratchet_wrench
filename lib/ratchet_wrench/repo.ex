@@ -308,12 +308,6 @@ defmodule RatchetWrench.Repo do
   end
 
   defp to_table_name(struct) do
-    table_name = struct.__struct__
-      |> to_string
-      |> String.split(".")
-      |> List.last
-      |> String.downcase
-      |> Inflex.pluralize
-    table_name
+    struct.__struct__.__table_name__
   end
 end

@@ -5,8 +5,8 @@ defmodule RatchetWrench.ModelTest do
     assert Singer.__pk__ == :singer_id
   end
 
-  # TODO: fix this
-  # test "fetch table_name" do
-  #   assert Singer.__table_name__ == "singers"
-  # end
+  test "fetch table_name" do
+    assert Singer.__table_name__ == "singers"
+    assert UserItem.__table_name__ == "user_items"
+  end
 end
