@@ -31,8 +31,8 @@ defmodule RatchetWrench.MixProject do
       {:goth, "~> 1.2.0"},
       {:inflex, "~> 2.0.0" },
       {:elixir_uuid, "~> 1.2" },
-      {:faker, "~> 0.13"},
       {:tzdata, "~> 1.0.3"},
+      {:faker, "~> 0.13", only: :test},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false},
     ]
