@@ -85,11 +85,7 @@ defmodule RatchetWrench.Model do
     attributes = Module.get_attribute(mod, :attributes)
     uuid         = Module.get_attribute(mod, :uuid)
 
-    result = attributes
-    |> Enum.map(fn {name, {_type, _default}} -> "#{name}" == "#{uuid}" end)
-    |> Enum.any?
-
-    if result == false do
+    unless defined_column?(attributes, uuid) do
       raise "Not define uuid in #{mod} module schema"
     end
   end
