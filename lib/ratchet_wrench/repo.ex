@@ -3,9 +3,9 @@ defmodule RatchetWrench.Repo do
 
     struct = to_struct(module)
     table_name = to_table_name(struct)
-    pk_name = module.__pk__
+    uuid_name = module.__uuid__
 
-    sql = "SELECT * FROM #{table_name} WHERE #{pk_name} = '#{id}'"
+    sql = "SELECT * FROM #{table_name} WHERE #{uuid_name} = '#{id}'"
 
     {:ok, result_set} = RatchetWrench.select_execute_sql(sql)
 
@@ -36,7 +36,7 @@ defmodule RatchetWrench.Repo do
 
     now_timestamp = RatchetWrench.DateTime.now()
 
-    map = set_pk_value(struct)
+    map = set_uuid_value(struct)
           |> set_inserted_at_value(now_timestamp)
           |> set_updated_at_value(now_timestamp)
           |> Map.from_struct
@@ -65,7 +65,7 @@ defmodule RatchetWrench.Repo do
 
     now_timestamp = RatchetWrench.DateTime.now()
 
-    map = set_pk_value(struct)
+    map = set_uuid_value(struct)
           |> set_inserted_at_value(now_timestamp)
           |> set_updated_at_value(now_timestamp)
           |> Map.from_struct
@@ -89,16 +89,16 @@ defmodule RatchetWrench.Repo do
     table_name = to_table_name(struct)
     result_struct = set_updated_at_value(struct)
     map = Map.from_struct(result_struct)
-    pk_name = struct.__struct__.__pk__
+    uuid_name = struct.__struct__.__uuid__
 
-    {:ok, pk_value} = Map.fetch(map, pk_name)
+    {:ok, uuid_value} = Map.fetch(map, uuid_name)
 
-    set_values_map = remove_pk(map, pk_name)
+    set_values_map = remove_uuid(map, uuid_name)
 
     set_value_list = Enum.reduce(set_values_map, [], fn({key, value}, acc) -> acc ++ ["#{key}" <> " = " <> convert_value(value)] end)
     set_value_string = Enum.join(set_value_list, ", ")
 
-    sql = "UPDATE #{table_name} SET #{set_value_string} WHERE #{pk_name} = #{convert_value(pk_value)}"
+    sql = "UPDATE #{table_name} SET #{set_value_string} WHERE #{uuid_name} = #{convert_value(uuid_value)}"
     case RatchetWrench.execute_sql(sql) do
       {:ok, _} -> {:ok, result_struct}
       {:error, reason} -> {:error, reason}
@@ -110,24 +110,24 @@ defmodule RatchetWrench.Repo do
     result_struct = set_updated_at_value(struct)
 
     map = Map.from_struct(result_struct)
-    pk_name = struct.__struct__.__pk__
+    uuid_name = struct.__struct__.__uuid__
 
-    {:ok, pk_value} = Map.fetch(map, pk_name)
+    {:ok, uuid_value} = Map.fetch(map, uuid_name)
 
-    set_values_map = remove_pk(map, pk_name)
+    set_values_map = remove_uuid(map, uuid_name)
 
     set_value_list = Enum.reduce(set_values_map, [], fn({key, value}, acc) -> acc ++ ["#{key}" <> " = " <> convert_value(value)] end)
     set_value_string = Enum.join(set_value_list, ", ")
 
-    "UPDATE #{table_name} SET #{set_value_string} WHERE #{pk_name} = #{convert_value(pk_value)}"
+    "UPDATE #{table_name} SET #{set_value_string} WHERE #{uuid_name} = #{convert_value(uuid_value)}"
   end
 
-  def delete(module, pk_value) do
+  def delete(module, uuid_value) do
     struct = to_struct(module)
     table_name = to_table_name(struct)
-    pk_name = module.__pk__
+    uuid_name = module.__uuid__
 
-    sql = "DELETE FROM #{table_name} WHERE #{pk_name} = #{convert_value(pk_value)}"
+    sql = "DELETE FROM #{table_name} WHERE #{uuid_name} = #{convert_value(uuid_value)}"
 
     case RatchetWrench.execute_sql(sql) do
       {:ok, result_set} -> {:ok, result_set}
@@ -176,16 +176,16 @@ defmodule RatchetWrench.Repo do
     converted_rows
   end
 
-  def remove_pk(map, pk_name) do
-    Map.delete(map, pk_name)
+  def remove_uuid(map, uuid_name) do
+    Map.delete(map, uuid_name)
   end
 
-  def set_pk_value(struct) do
-    pk_name = struct.__struct__.__pk__
+  def set_uuid_value(struct) do
+    uuid_name = struct.__struct__.__uuid__
 
-    if Map.has_key?(struct, pk_name) do
-      if Map.fetch(struct, pk_name) == {:ok, nil} || Map.fetch(struct, pk_name) == {:ok, ""} do
-        {map, _} = Code.eval_string("%{#{pk_name}: UUID.uuid4()}")
+    if Map.has_key?(struct, uuid_name) do
+      if Map.fetch(struct, uuid_name) == {:ok, nil} || Map.fetch(struct, uuid_name) == {:ok, ""} do
+        {map, _} = Code.eval_string("%{#{uuid_name}: UUID.uuid4()}")
         Map.merge(struct, map)
       else
         struct

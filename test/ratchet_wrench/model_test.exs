@@ -1,8 +1,8 @@
 defmodule RatchetWrench.ModelTest do
   use ExUnit.Case
 
-  test "defined pk" do
-    assert Singer.__pk__ == :singer_id
+  test "defined uuid" do
+    assert Singer.__uuid__ == :singer_id
   end
 
   test "fetch table_name" do

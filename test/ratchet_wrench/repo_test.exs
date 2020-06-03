@@ -81,8 +81,8 @@ defmodule RatchetWrench.RepoTest do
     assert RatchetWrench.Repo.get(Singer, not_exist_id) == nil
   end
 
-  test "insert/get/delete new record at auto pk value" do
-    new_singer = %Singer{first_name: "example_first_name_auto_pk"}
+  test "insert/get/delete new record at auto uuid value" do
+    new_singer = %Singer{first_name: "example_first_name_auto_uuid"}
     now_timestamp = DateTime.utc_now
 
     assert new_singer.singer_id == nil
@@ -93,7 +93,7 @@ defmodule RatchetWrench.RepoTest do
 
     assert struct.singer_id != nil
     assert byte_size(struct.singer_id) == 36 # UUIDv4
-    assert struct.first_name == "example_first_name_auto_pk"
+    assert struct.first_name == "example_first_name_auto_uuid"
 
     assert now_timestamp < struct.inserted_at
     assert struct.inserted_at == struct.updated_at
@@ -194,8 +194,8 @@ defmodule RatchetWrench.RepoTest do
     assert RatchetWrench.Repo.convert_value(99.9) == "99.9"
   end
 
-  test ".set_pk_value/1" do
-    singer = RatchetWrench.Repo.set_pk_value(%Singer{})
+  test ".set_uuid_value/1" do
+    singer = RatchetWrench.Repo.set_uuid_value(%Singer{})
     assert singer.singer_id != nil
   end
 
