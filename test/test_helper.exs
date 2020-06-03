@@ -9,6 +9,7 @@ defmodule Singer do
 
   schema do
     uuid :singer_id
+    pk [:singer_id]
     attributes singer_id: {"STRING", nil},
       first_name: {"STRING", nil},
       last_name: {"STRING", nil},
@@ -26,6 +27,7 @@ defmodule Data do
 
   schema do
     uuid :data_id
+    pk [:data_id]
     attributes data_id: {"STRING", nil},
       string: {"STRING", ""},
       bool: {"BOOL", nil },
@@ -33,6 +35,21 @@ defmodule Data do
       float: {"FLOAT64", nil},
       date: {"DATE", nil},
       time_stamp: {"TIMESTAMP", nil}
+  end
+end
+
+defmodule User do
+  @moduledoc """
+  Sample model module for unit test.
+  """
+
+  use RatchetWrench.Model
+
+  schema do
+    uuid :user_id
+    pk [:user_id]
+    attributes user_id: {"STRING", nil},
+      name: {"STRING", nil}
   end
 end
 
@@ -45,8 +62,10 @@ defmodule UserItem do
 
   schema do
     uuid :user_item_id
+    pk [:user_id, :user_item_id]
     attributes user_item_id: {"STRING", nil},
-      name: {"STRING", ""}
+      user_id: {"STRING", nil},
+      name: {"STRING", nil}
   end
 end
 
