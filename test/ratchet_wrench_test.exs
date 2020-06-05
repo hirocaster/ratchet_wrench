@@ -36,9 +36,6 @@ defmodule RatchetWrenchTest do
     RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
 
     on_exit fn ->
-      RatchetWrench.Repo.delete(Singer, "1")
-      RatchetWrench.Repo.delete(Singer, "3")
-
       System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
                                            "DROP TABLE data"])
@@ -81,13 +78,13 @@ defmodule RatchetWrenchTest do
   end
 
   test "Connection check CloudSpanner" do
-    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT 1")
+    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT 1", %{})
     assert result_set != nil
     assert result_set.rows == [["1"]]
   end
 
   test "execute SELECT SQL" do
-    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers")
+    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     assert result_set != nil
 
     [singer_id, first_name, last_name | _] = List.first(result_set.rows)
@@ -101,13 +98,16 @@ defmodule RatchetWrenchTest do
   end
 
   test "SQL INSERT/UPDATE/DELETE" do
-    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers")
+    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     before_rows_count = Enum.count(result_set.rows)
 
-    {:ok, result_set} = RatchetWrench.execute_sql("INSERT INTO singers(singer_id, first_name, last_name) VALUES('2', 'Catalina', 'Smith')")
+    insert_sql = "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)"
+    insert_params = %{singer_id: "2", first_name: "Catalina", last_name: "Smith"}
+    insert_param_types = RatchetWrench.Repo.param_types(Singer)
+    {:ok, result_set} = RatchetWrench.execute_sql(insert_sql, insert_params, insert_param_types)
     assert result_set != nil
 
-    result_set = RatchetWrench.sql("SELECT * FROM singers")
+    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     assert result_set != nil
 
     Enum.with_index(result_set.rows, 1)
@@ -115,56 +115,55 @@ defmodule RatchetWrenchTest do
       assert List.first(raw_list) == "#{singer_id}"
     end)
 
-    {:ok, result_set} = RatchetWrench.execute_sql("DELETE FROM singers WHERE singer_id = '2'")
+    delete_sql = "DELETE FROM singers WHERE singer_id = @singer_id"
+    delete_params = %{singer_id: "2"}
+    delete_param_types = RatchetWrench.Repo.param_types(Singer)
+
+    {:ok, result_set} = RatchetWrench.execute_sql(delete_sql, delete_params, delete_param_types)
     assert result_set != nil
     assert result_set.stats.rowCountExact == "1"
 
 
-    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers")
+    {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     after_rows_count = Enum.count(result_set.rows)
 
     assert before_rows_count == after_rows_count
   end
 
-  test "SQL SELECT/SELECT in Transaction" do
-    sql = "SELECT * FROM singers"
+  test ".valid_transaction_execute_sql_map_list!" do
+    insert_sql_map = %{sql: "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)",
+                       params: %{singer_id: "2", first_name: "Catalina", last_name: "Smith"},
+                       param_types: RatchetWrench.Repo.param_types(Singer)}
+    assert :ok = RatchetWrench.valid_transaction_execute_sql_map_list!([insert_sql_map])
 
-    sql_list = [sql, sql]
 
-    result_set_list = RatchetWrench.transaction_execute_sql(sql_list)
-    assert result_set_list != nil
-
-    result_set = List.first(result_set_list)
-
-    [singer_id, first_name, last_name | _] = List.first(result_set.rows)
-    assert singer_id == "1"
-    assert first_name == "Marc"
-    assert last_name == "Richards"
-    [singer_id, first_name, last_name | _] = List.last(result_set.rows)
-    assert singer_id == "3"
-    assert first_name == "Kena"
-    assert last_name == nil
-
-    result_set = List.last(result_set_list)
-    [singer_id, first_name, last_name | _] = List.first(result_set.rows)
-    assert singer_id == "1"
-    assert first_name == "Marc"
-    assert last_name == "Richards"
-    [singer_id, first_name, last_name | _] = List.last(result_set.rows)
-    assert singer_id == "3"
-    assert first_name == "Kena"
-    assert last_name == nil
+    raise_sql_map = %{sql: "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)",
+                      params: %{singer_id: "2", first_name: "Catalina", last_name: "Smith"}}
+    assert_raise RuntimeError, fn ->
+      RatchetWrench.valid_transaction_execute_sql_map_list!([raise_sql_map])
+    end
   end
 
   test "SQL SELECT/INSERT/UPDATE/DELETE in Transaction" do
-    select_sql = "SELECT * FROM singers"
-    insert_sql = "INSERT INTO singers(singer_id, first_name, last_name) VALUES('2','Catalina', 'Smith')"
-    update_sql = "UPDATE singers SET first_name = \"Cat\" WHERE singer_id = '2'"
-    delete_sql = "DELETE FROM singers WHERE singer_id = '2'"
+    select_sql_map = %{sql: "SELECT * FROM singers",
+                       params: %{},
+                       param_types: %{}}
 
-    sql_list = [select_sql, insert_sql, select_sql, update_sql, select_sql, delete_sql, select_sql]
+    insert_sql_map = %{sql: "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)",
+                       params: %{singer_id: "2", first_name: "Catalina", last_name: "Smith"},
+                       param_types: RatchetWrench.Repo.param_types(Singer)}
 
-    result_set_list = RatchetWrench.transaction_execute_sql(sql_list)
+    update_sql_map = %{sql: "UPDATE singers SET first_name = @first_name WHERE singer_id = @singer_id",
+                       params: %{first_name: "Cat", singer_id: "2"},
+                       param_types: RatchetWrench.Repo.param_types(Singer)}
+
+    delete_sql_map = %{sql: "DELETE FROM singers WHERE singer_id = @singer_id",
+                       params: %{singer_id: "2"},
+                       param_types: RatchetWrench.Repo.param_types(Singer)}
+
+    sql_map_list = [select_sql_map, insert_sql_map, select_sql_map, update_sql_map, select_sql_map, delete_sql_map, select_sql_map]
+
+    result_set_list = RatchetWrench.transaction_execute_sql(sql_map_list)
     assert result_set_list != nil
 
     [select_result_set | tail_set_list] = result_set_list

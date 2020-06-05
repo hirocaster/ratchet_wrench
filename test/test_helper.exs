@@ -72,7 +72,7 @@ end
 defmodule TestHelper do
   def check_ready_table(struct) do
     uuid_name = struct.__struct__.__uuid__
-    uuid_value = "uuid_test"
+    uuid_value = ["uuid_test"]
     {map, _} = Code.eval_string("%{#{uuid_name}: '#{uuid_value}'}")
     test_data = Map.merge(struct, map)
 
@@ -84,7 +84,7 @@ defmodule TestHelper do
   def insert_loop(struct) do
     case RatchetWrench.Repo.insert(struct) do
       {:ok, result} -> {:ok, result}
-      {:error, _} ->
+      {:error, _reason} ->
         Process.sleep(1000)
         insert_loop(struct)
     end
