@@ -94,7 +94,7 @@ defmodule RatchetWrench.RepoTest do
     assert struct.inserted_at == struct.updated_at
     assert now_timestamp < struct.inserted_at
 
-    sql = RatchetWrench.Repo.get_sql(Singer, [struct.singer_id])
+    sql = RatchetWrench.Repo.get_sql(Singer)
     params = RatchetWrench.Repo.params_pk_map(Singer, [struct.singer_id])
     {:ok, raw_result_set} = RatchetWrench.select_execute_sql(sql, params)
 
@@ -213,7 +213,7 @@ defmodule RatchetWrench.RepoTest do
     end
 
     test ".get_sql" do
-      get_sql = RatchetWrench.Repo.get_sql(UserItem, [1, 10])
+      get_sql = RatchetWrench.Repo.get_sql(UserItem)
       assert get_sql == "SELECT * FROM user_items WHERE user_id = @user_id AND user_item_id = @user_item_id"
     end
 

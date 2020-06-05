@@ -2,7 +2,7 @@ defmodule RatchetWrench.Repo do
   def get(module, pk_value_list) do
     valid_pk_value_list!(module, pk_value_list)
 
-    sql = get_sql(module, pk_value_list)
+    sql = get_sql(module)
     params = params_pk_map(module, pk_value_list)
 
     {:ok, result_set} = RatchetWrench.select_execute_sql(sql, params)
@@ -15,11 +15,9 @@ defmodule RatchetWrench.Repo do
     end
   end
 
-  def get_sql(module, pk_value_list) do
+  def get_sql(module) do
     table_name = module.__table_name__
     base_sql = "SELECT * FROM #{table_name} WHERE "
-
-    pk_list = module.__pk__
     base_sql <> where_pk_sql(module)
   end
 
@@ -92,24 +90,13 @@ defmodule RatchetWrench.Repo do
     column_list = Map.keys(map)
     column_list_string = Enum.join(column_list, ", ")
 
-    values_list_string = Enum.reduce(map, [], fn({key, value}, acc) ->
+    values_list_string = Enum.reduce(map, [], fn({key, _value}, acc) ->
                            acc ++ ["@#{key}"]
                          end) |> Enum.join(", ")
 
     "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
   end
 
-  def params_insert_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    set_uuid_value(struct)
-    |> set_inserted_at_value(now_timestamp)
-    |> set_updated_at_value(now_timestamp)
-    |> Map.from_struct
-    |> Enum.reduce(%{}, fn({key, value}, acc) ->
-      Map.merge(acc, Map.put(%{}, key, convert_value(value)))
-      end)
-  end
   def params_insert_values_map(struct) do
     now_timestamp = RatchetWrench.DateTime.now()
 
@@ -141,14 +128,6 @@ defmodule RatchetWrench.Repo do
        end)
   end
 
-  def params_update_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    set_uuid_value(struct)
-    |> set_updated_at_value(now_timestamp)
-    |> Map.from_struct
-  end
-
   def set(struct) do
     sql = update_sql(struct)
     params = params_update_values_map(struct)
@@ -169,7 +148,7 @@ defmodule RatchetWrench.Repo do
           |> Map.from_struct
           |> remove_pk(struct)
 
-    values_list_string = Enum.reduce(map, [], fn({key, value}, acc) ->
+    values_list_string = Enum.reduce(map, [], fn({key, _value}, acc) ->
                            acc ++ ["#{key} = @#{key}"]
                          end) |> Enum.join(", ")
 
@@ -188,10 +167,6 @@ defmodule RatchetWrench.Repo do
   def delete(module, pk_value_list) do
     valid_pk_value_list!(module, pk_value_list)
 
-    struct = to_struct(module)
-    table_name = to_table_name(struct)
-    uuid_name = module.__uuid__
-
     sql = delete_sql(module)
     params = params_pk_map(module, pk_value_list)
     param_types = param_types(module)
@@ -205,8 +180,6 @@ defmodule RatchetWrench.Repo do
   def delete_sql(module) do
     table_name = module.__table_name__
     base_sql = "DELETE FROM #{table_name} WHERE "
-
-    pk_list = module.__pk__
     base_sql <> where_pk_sql(module)
   end
 
