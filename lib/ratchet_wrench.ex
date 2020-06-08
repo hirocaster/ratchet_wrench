@@ -37,6 +37,14 @@ defmodule RatchetWrench do
     end
   end
 
+  def batch_create_session(connection, session_count) do
+    json = %{sessionCount: session_count}
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(connection, database(), [{:body, json}]) do
+      {:ok, response} -> response.session
+      {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+    end
+  end
+
   def delete_session(connection, session) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_delete(connection, session.name) do
       {:ok, result} -> {:ok, result}
