@@ -65,6 +65,20 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.token().expires > :os.system_time(:second)
   end
 
+  describe "Change bad token scope" do
+    setup do
+      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "bad/scope/token")
+      on_exit fn ->
+        System.delete_env("RATCHET_WRENCH_TOKEN_SCOPE")
+      end
+    end
+
+    test "Goth config error" do
+      {:error, reason} = RatchetWrench.token()
+      assert reason =~ "invalid_scope"
+    end
+  end
+
   test "get connection" do
     assert RatchetWrench.connection(RatchetWrench.token) != nil
   end

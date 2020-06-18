@@ -16,7 +16,7 @@ defmodule RatchetWrench do
   def token() do
     case Goth.Token.for_scope(token_scope()) do
       {:ok, token} -> token
-      {:error, _} -> raise "goth config error. Check env `GCP_CREDENTIALS` or config"
+      {:error, reason} -> {:error, reason}
     end
   end
 
