@@ -93,7 +93,7 @@ defmodule RatchetWrenchTest do
     connection = RatchetWrench.connection(token)
     {:ok, session} = RatchetWrench.Session.create(connection)
     assert session != nil
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
   end
 
   test "Connection check CloudSpanner" do

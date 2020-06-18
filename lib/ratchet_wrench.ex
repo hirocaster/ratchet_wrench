@@ -9,7 +9,7 @@ defmodule RatchetWrench do
     {:ok, session} = RatchetWrench.Session.create(connection)
     json = %{sql: "SELECT 1"}
     {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
     {:ok, result_set}
   end
 
@@ -26,13 +26,6 @@ defmodule RatchetWrench do
 
   def connection(token) do
     GoogleApi.Spanner.V1.Connection.new(token.token)
-  end
-
-  def delete_session(connection, session) do
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_delete(connection, session.name) do
-      {:ok, result} -> {:ok, result}
-      {:error, reason} -> {:error, reason}
-    end
   end
 
   def update_ddl(ddl_list) do
@@ -82,10 +75,10 @@ defmodule RatchetWrench do
 
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
       {:ok, result_set} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:ok, result_set}
       {:error, reason} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:error, Poison.Parser.parse!(reason.body, %{})}
     end
   end
@@ -99,7 +92,7 @@ defmodule RatchetWrench do
     case do_execute_sql(connection, session, transaction, json) do
       {:ok, result_set} ->
         RatchetWrench.commit_transaction(connection, session, transaction)
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:ok, result_set}
       {:error, reason} -> {:error, reason}
     end
@@ -119,10 +112,10 @@ defmodule RatchetWrench do
 
     case rollback_transaction(connection, session, transaction) do
       {:ok, _} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:error, reason_json}
       {:error, reason} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:error, reason} # TODO: logging can not rollback
     end
   end
@@ -191,7 +184,7 @@ defmodule RatchetWrench do
       end
     end)
     RatchetWrench.commit_transaction(connection, session, transaction)
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
     result_set_list
   end
 
@@ -215,7 +208,7 @@ defmodule RatchetWrench do
     {:ok, session} = RatchetWrench.Session.create(connection)
     json = %{sql: sql}
     {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
     result_set
   end
 end
