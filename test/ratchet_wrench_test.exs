@@ -91,7 +91,7 @@ defmodule RatchetWrenchTest do
   test "get session/delete session" do
     token = RatchetWrench.token
     connection = RatchetWrench.connection(token)
-    session = RatchetWrench.create_session(connection)
+    {:ok, session} = RatchetWrench.Session.create(connection)
     assert session != nil
     {:ok, _} = RatchetWrench.delete_session(connection, session)
   end
