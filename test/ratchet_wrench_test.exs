@@ -3,8 +3,9 @@ defmodule RatchetWrenchTest do
   doctest RatchetWrench
 
   setup_all do
-    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+    env_scope = RatchetWrench.token_scope()
 
+    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
     ddl_singer = "CREATE TABLE data (
                    data_id STRING(36) NOT NULL,
                    string STRING(MAX),
@@ -26,9 +27,9 @@ defmodule RatchetWrenchTest do
     ddl_list = [ddl_singer, ddl_data]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
 
-    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.data")
+    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
 
-    Process.sleep(10_000) # Wait DML
+    Process.sleep(10_000) # Wait apply DML
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
 
@@ -39,6 +40,8 @@ defmodule RatchetWrenchTest do
       System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
                                            "DROP TABLE data"])
+
+      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
     end
   end
 
@@ -67,13 +70,15 @@ defmodule RatchetWrenchTest do
 
   describe "Change bad token scope" do
     setup do
+      env_scope = RatchetWrench.token_scope()
       System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "bad/scope/token")
+
       on_exit fn ->
-        System.delete_env("RATCHET_WRENCH_TOKEN_SCOPE")
+        System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
       end
     end
 
-    test "Goth config error" do
+    test "Goth scope config error" do
       {:error, reason} = RatchetWrench.token()
       assert reason =~ "invalid_scope"
     end
