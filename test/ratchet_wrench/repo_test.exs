@@ -35,6 +35,15 @@ defmodule RatchetWrench.RepoTest do
     RatchetWrench.Repo.insert(%Singer{singer_id: "1", first_name: "Marc", last_name: "Richards"})
     RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
 
+    test_data = %Data{data_id: "test_data",
+                      string: Faker.String.base64(1_024_000),
+                      bool: List.first(Enum.take_random([true, false], 1)),
+                      int: List.first(Enum.take_random(0..9, 1)),
+                      float: 99.9,
+                      date: Faker.Date.date_of_birth(),
+                      time_stamp: Faker.DateTime.forward(365)}
+    RatchetWrench.Repo.insert(test_data)
+
     1..100
     |> Enum.map(fn(_) ->
       Task.async(fn ->
@@ -271,5 +280,31 @@ defmodule RatchetWrench.RepoTest do
                                                        last_name: %{code: "STRING"},
                                                        singer_id: %{code: "STRING"},
                                                        updated_at: %{code: "TIMESTAMP"}}
+  end
+
+  test "get test data by .get/2" do
+    test_data = RatchetWrench.Repo.get(Data, ["test_data"])
+    assert is_binary(test_data.data_id)
+    assert is_binary(test_data.string)
+    assert is_boolean(test_data.bool)
+    assert is_integer(test_data.int)
+    assert is_float(test_data.float)
+    assert test_data.date.__struct__ == Date
+    assert test_data.time_stamp.__struct__ == DateTime
+  end
+
+  test "get test data by .where/3" do
+    {:ok, test_data_list} = RatchetWrench.Repo.where(%Data{}, "data_id = @data_id", %{data_id: "test_data"})
+    assert Enum.count(test_data_list) == 1
+
+    test_data = List.first(test_data_list)
+
+    assert is_binary(test_data.data_id)
+    assert is_binary(test_data.string)
+    assert is_boolean(test_data.bool)
+    assert is_integer(test_data.int)
+    assert is_float(test_data.float)
+    assert test_data.date.__struct__ == Date
+    assert test_data.time_stamp.__struct__ == DateTime
   end
 end
