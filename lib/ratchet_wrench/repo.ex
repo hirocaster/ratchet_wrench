@@ -67,25 +67,28 @@ defmodule RatchetWrench.Repo do
 
 
   def insert(struct) do
+    struct = set_timestamps(struct)
     sql = insert_sql(struct)
     params = params_insert_values_map(struct)
     param_types = param_types(struct.__struct__)
 
     case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, _} -> {:ok, Map.merge(struct, params)}
+      {:ok, _} -> {:ok, struct}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp set_timestamps(struct) do
+    now_timestamp = RatchetWrench.DateTime.now()
+    set_uuid_value(struct)
+    |> set_inserted_at_value(now_timestamp)
+    |> set_updated_at_value(now_timestamp)
   end
 
   def insert_sql(struct) do
     table_name = to_table_name(struct)
 
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    map = set_uuid_value(struct)
-          |> set_inserted_at_value(now_timestamp)
-          |> set_updated_at_value(now_timestamp)
-          |> Map.from_struct
+    map = Map.from_struct(struct)
 
     column_list = Map.keys(map)
     column_list_string = Enum.join(column_list, ", ")
@@ -129,29 +132,31 @@ defmodule RatchetWrench.Repo do
   end
 
   def set(struct) do
+    struct = set_update_timestamp(struct)
     sql = update_sql(struct)
     params = params_update_values_map(struct)
     param_types = param_types(struct.__struct__)
 
     case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, _} -> {:ok, Map.merge(struct, params)}
+      {:ok, _} -> {:ok, struct}
       {:error, reason} -> {:error, reason}
     end
   end
 
+  defp set_update_timestamp(struct) do
+    now_timestamp = RatchetWrench.DateTime.now()
+    set_updated_at_value(struct, now_timestamp)
+  end
+
+
   def update_sql(struct) do
     table_name = struct.__struct__.__table_name__
-    now_timestamp = RatchetWrench.DateTime.now()
 
-    map = set_uuid_value(struct)
-          |> set_updated_at_value(now_timestamp)
-          |> Map.from_struct
-          |> remove_pk(struct)
+    map = Map.from_struct(struct) |> remove_pk(struct)
 
     values_list_string = Enum.reduce(map, [], fn({key, _value}, acc) ->
                            acc ++ ["#{key} = @#{key}"]
                          end) |> Enum.join(", ")
-
 
     base_sql = "UPDATE #{table_name} SET #{values_list_string} WHERE "
     base_sql <> where_pk_sql(struct.__struct__)

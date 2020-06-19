@@ -44,7 +44,7 @@ defmodule RatchetWrench.RepoTest do
                       time_stamp: Faker.DateTime.forward(365)}
     RatchetWrench.Repo.insert(test_data)
 
-    1..100
+    1..99
     |> Enum.map(fn(_) ->
       Task.async(fn ->
                   new_data = %Data{string: Faker.String.base64(1_024_000),
@@ -282,29 +282,71 @@ defmodule RatchetWrench.RepoTest do
                                                        updated_at: %{code: "TIMESTAMP"}}
   end
 
-  test "get test data by .get/2" do
-    test_data = RatchetWrench.Repo.get(Data, ["test_data"])
-    assert is_binary(test_data.data_id)
-    assert is_binary(test_data.string)
-    assert is_boolean(test_data.bool)
-    assert is_integer(test_data.int)
-    assert is_float(test_data.float)
-    assert test_data.date.__struct__ == Date
-    assert test_data.time_stamp.__struct__ == DateTime
-  end
+  describe "type cast checks" do
+    test "insert/update check type for data " do
+      id = "test_data_999"
 
-  test "get test data by .where/3" do
-    {:ok, test_data_list} = RatchetWrench.Repo.where(%Data{}, "data_id = @data_id", %{data_id: "test_data"})
-    assert Enum.count(test_data_list) == 1
+      test_data = %Data{data_id: id,
+                        string: Faker.String.base64(1_024_000),
+                        bool: List.first(Enum.take_random([true, false], 1)),
+                        int: List.first(Enum.take_random(0..9, 1)),
+                        float: 99.9,
+                        date: Faker.Date.date_of_birth(),
+                        time_stamp: Faker.DateTime.forward(365)}
+      {:ok, data} = RatchetWrench.Repo.insert(test_data)
 
-    test_data = List.first(test_data_list)
+      assert is_binary(data.data_id)
+      assert is_binary(data.string)
+      assert is_boolean(data.bool)
+      assert is_integer(data.int)
+      assert is_float(data.float)
+      assert data.date.__struct__ == Date
+      assert data.time_stamp.__struct__ == DateTime
 
-    assert is_binary(test_data.data_id)
-    assert is_binary(test_data.string)
-    assert is_boolean(test_data.bool)
-    assert is_integer(test_data.int)
-    assert is_float(test_data.float)
-    assert test_data.date.__struct__ == Date
-    assert test_data.time_stamp.__struct__ == DateTime
+      test_data2 = %Data{data_id: id,
+                        string: Faker.String.base64(1_024_000),
+                        bool: List.first(Enum.take_random([true, false], 1)),
+                        int: List.first(Enum.take_random(0..9, 1)),
+                        float: 99.9,
+                        date: Faker.Date.date_of_birth(),
+                        time_stamp: Faker.DateTime.forward(365)}
+      {:ok, data} = RatchetWrench.Repo.set(test_data2)
+
+      assert is_binary(data.data_id)
+      assert is_binary(data.string)
+      assert is_boolean(data.bool)
+      assert is_integer(data.int)
+      assert is_float(data.float)
+      assert data.date.__struct__ == Date
+      assert data.time_stamp.__struct__ == DateTime
+
+      RatchetWrench.Repo.delete(Data, [id])
+    end
+
+    test "get test data by .get/2" do
+      test_data = RatchetWrench.Repo.get(Data, ["test_data"])
+      assert is_binary(test_data.data_id)
+      assert is_binary(test_data.string)
+      assert is_boolean(test_data.bool)
+      assert is_integer(test_data.int)
+      assert is_float(test_data.float)
+      assert test_data.date.__struct__ == Date
+      assert test_data.time_stamp.__struct__ == DateTime
+    end
+
+    test "get test data by .where/3" do
+      {:ok, test_data_list} = RatchetWrench.Repo.where(%Data{}, "data_id = @data_id", %{data_id: "test_data"})
+      assert Enum.count(test_data_list) == 1
+
+      test_data = List.first(test_data_list)
+
+      assert is_binary(test_data.data_id)
+      assert is_binary(test_data.string)
+      assert is_boolean(test_data.bool)
+      assert is_integer(test_data.int)
+      assert is_float(test_data.float)
+      assert test_data.date.__struct__ == Date
+      assert test_data.time_stamp.__struct__ == DateTime
+    end
   end
 end
