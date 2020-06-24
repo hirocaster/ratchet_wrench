@@ -2,12 +2,33 @@ defmodule RatchetWrench.SessionPoolTest do
   use ExUnit.Case
 
   setup_all do
+    session_min = RatchetWrench.SessionPool.session_min()
+    System.put_env("RATCHET_WRENCH_SESSION_MIN", "3")
+
+    session_monitor_interval = RatchetWrench.SessionPool.session_monitor_interval()
+    System.put_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL", "1000") # 1sec
+
+    session_bust_num = RatchetWrench.SessionPool.session_bust_num()
+    System.put_env("RATCHET_WRENCH_SESSION_BUST", "10")
+
     children = [
       {RatchetWrench.SessionPool, %RatchetWrench.Pool{}},
       {Mutex, name: RatchetWrenchSessionPoolMutex, meta: :ratchet_wrench_session_pool}
     ]
     {:ok, _pid} = Supervisor.start_link(children, strategy: :one_for_one)
     :ok
+
+    on_exit fn ->
+      System.put_env("RATCHET_WRENCH_SESSION_MIN", session_min  |> Integer.to_string())
+      System.put_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL", session_monitor_interval |> Integer.to_string())
+      System.put_env("RATCHET_WRENCH_SESSION_BUST", session_bust_num |> Integer.to_string())
+    end
+  end
+
+  test "Check setup config" do
+    assert RatchetWrench.SessionPool.session_min() == 3
+    assert RatchetWrench.SessionPool.session_monitor_interval() == 1000
+    assert RatchetWrench.SessionPool.session_bust_num() == 10
   end
 
   test "async .checkout() / .checkin()" do
@@ -36,34 +57,36 @@ defmodule RatchetWrench.SessionPoolTest do
     assert session.name == List.last(pool.idle).name
   end
 
-  # test "Update approximateLastUseTime at checkin" do
-  #   session = RatchetWrench.SessionPool.checkout()
-  #   RatchetWrench.ping(session)
-  #   RatchetWrench.SessionPool.checkin(session)
-  #   pool = RatchetWrench.SessionPool.pool()
-  #   assert DateTime.diff(List.last(pool).approximateLastUseTime, session.approximateLastUseTime) > 0
-  # end
-
   test ".is_safe_session?" do
     session = RatchetWrench.SessionPool.checkout()
     RatchetWrench.SessionPool.checkin(session)
     assert RatchetWrench.SessionPool.is_safe_session?(session)
   end
 
-  test "Replace old session at checkin" do
+  test "Old session not into idle pool at checkin" do
     session = RatchetWrench.SessionPool.checkout()
     old_datetime = DateTime.utc_now() |> DateTime.add(-3600, :second)
     old_session = Map.merge(session, %{approximateLastUseTime: old_datetime, createTime: old_datetime})
 
-    Process.sleep(1000)
     RatchetWrench.SessionPool.checkin(old_session)
 
     new_pool = RatchetWrench.SessionPool.pool()
-    new_session = List.last(new_pool.idle).approximateLastUseTime
 
-    assert DateTime.diff(new_session, session.approximateLastUseTime) > 0
-    assert session.name != new_session
-    assert Enum.count(new_pool.idle) == 10
+    session_name_list = Enum.reduce(new_pool.idle, [], fn(session, acc) ->
+                          acc ++ [session.name]
+                        end)
+
+    assert Enum.any?(session_name_list, fn(name) -> name == old_session.name end) == false
+  end
+
+  test "session bust at interval" do
+    session1 = RatchetWrench.SessionPool.checkout()
+    session2 = RatchetWrench.SessionPool.checkout()
+    Process.sleep(3000) # wait bust(session batch create)
+    RatchetWrench.SessionPool.checkin(session1)
+    RatchetWrench.SessionPool.checkin(session2)
+
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 13
   end
 
   # test "loop replace sessions in pool" do

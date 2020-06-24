@@ -3,9 +3,6 @@ defmodule RatchetWrench.SessionPool do
   require RatchetWrench.Mutex
   require Logger
 
-  # TODO: Change interval
-  # @default_interval 60 * 1000 # 60 seconds
-  @default_interval 1000 # 1 seconds
   @session_update_boarder 60 * 55 # 55min
 
   @impl true
@@ -15,17 +12,40 @@ defmodule RatchetWrench.SessionPool do
     {:ok, pool}
   end
 
-  defp startup_connection_num do
-    System.get_env("RATCHET_WRENCH_SESSION_MIN") || 10
+  def session_monitor_interval do
+    env = System.get_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL")
+    if env do
+      env |> String.to_integer()
+    else
+      60000 # 60sec
+    end
   end
 
-  defp session_max do
+  def session_bust_num do
+    env = System.get_env("RATCHET_WRENCH_SESSION_BUST")
+    if env do
+      env |> String.to_integer()
+    else
+      30
+    end
+  end
+
+  def session_min do
+    env = System.get_env("RATCHET_WRENCH_SESSION_MIN")
+    if env do
+      env |> String.to_integer()
+    else
+      10
+    end
+  end
+
+  def session_max do
     System.get_env("RATCHET_WRENCH_SESSION_MAX") || 1000
   end
 
   def start_link(pool \\ %RatchetWrench.Pool{}) do
     if Enum.empty?(pool.idle) do
-      sessions = batch_create_session(startup_connection_num())
+      sessions = batch_create_session(session_min())
       pool = %RatchetWrench.Pool{idle: sessions}
       GenServer.start_link(__MODULE__, pool, name: __MODULE__)
     else
@@ -68,8 +88,41 @@ defmodule RatchetWrench.SessionPool do
     end
   end
 
+  def session_bust(pool) do
+    if Enum.count(pool.idle) < (session_min() / 2) do
+
+      sessions_list = pool
+                      |> calculation_session_bust_num()
+                      |> session_batch_create()
+
+      RatchetWrench.Mutex.lock do
+        pool = Map.merge(pool, %RatchetWrench.Pool{idle: pool.idle ++ sessions_list})
+        pool
+      end
+    else
+      pool
+    end
+  end
+
+  def calculation_session_bust_num(pool) do
+    total_session_now = Enum.count(pool.idle ++ pool.checkout)
+    limit_create_session_num = session_max() - total_session_now
+
+    if session_bust_num() < limit_create_session_num do
+      session_bust_num()
+    else
+      limit_create_session_num
+    end
+  end
+
+  def session_batch_create(num) do
+    RatchetWrench.token
+    |> RatchetWrench.connection
+    |> RatchetWrench.batch_create_session(num)
+  end
+
   def set_interval do
-    Process.send_after(self(), :update_expire, @default_interval)
+    Process.send_after(self(), :session_pool_monitor, session_monitor_interval())
   end
 
   def pool do
@@ -81,32 +134,14 @@ defmodule RatchetWrench.SessionPool do
   end
 
   @impl GenServer
-  def handle_info(:update_expire, pool) do
-    # IO.inspect pool # TODO: remove
-    # expire_check(pool)
+  def handle_info(:session_pool_monitor, pool) do
     set_interval()
-    {:noreply, pool}
+    {:noreply, session_bust(pool)}
   end
 
   @impl GenServer
   def handle_info(:kill, pool) do
     {:stop, :normal, pool}
-  end
-
-  # @update_boarder_time = 60  * 10 # 10min
-  @update_boarder_time 3
-
-  def expire_check(pool) do
-    Enum.map(pool, fn(session) ->
-      approximate_last_use_time = session.approximateLastUseTime
-      if DateTime.diff(DateTime.utc_now, approximate_last_use_time) > @update_boarder_time do
-        {:ok, _} = RatchetWrench.ping(session)
-        # TODO: fetch session data by API(need update approximateLastUseTime)
-        session
-      else
-        session
-      end
-    end)
   end
 
   def kill do
@@ -140,6 +175,11 @@ defmodule RatchetWrench.SessionPool do
                         end)
     pool = Map.merge(pool, %{checkout: checkout_sessions})
     pool = Map.merge(pool, %{idle: pool.idle ++ [session]})
+    {:reply, pool, pool}
+  end
+
+  def handle_call({:session_bust, session_list}, _from, pool) do
+    pool = Map.merge(pool, %{idle: pool.idle ++ session_list})
     {:reply, pool, pool}
   end
 
