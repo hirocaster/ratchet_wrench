@@ -16,7 +16,7 @@ defmodule RatchetWrench.SessionPool do
   end
 
   defp startup_connection_num do
-    3
+    System.get_env("RATCHET_WRENCH_SESSION_MIN") || 10
   end
 
   def start_link(pool \\ %RatchetWrench.Pool{}) do

@@ -63,7 +63,7 @@ defmodule RatchetWrench.SessionPoolTest do
 
     assert DateTime.diff(new_session, session.approximateLastUseTime) > 0
     assert session.name != new_session
-    assert Enum.count(new_pool.idle) == 3
+    assert Enum.count(new_pool.idle) == 10
   end
 
   # test "loop replace sessions in pool" do
