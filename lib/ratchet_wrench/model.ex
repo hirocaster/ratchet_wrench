@@ -9,7 +9,8 @@ defmodule RatchetWrench.Model do
       use RatchetWrench.Model
 
       schema do
-        pk :data_id
+        uuid :data_id
+        pk: [:data_id]
         attributes data_id: {"STRING", nil},
           string: {"STRING", ""},
           bool: {"BOOL", nil },
@@ -38,6 +39,7 @@ defmodule RatchetWrench.Model do
       default_table_name = "#{table_name}"
 
       Module.put_attribute(__MODULE__, :table_name, default_table_name)
+      Module.register_attribute(__MODULE__, :uuid, accumulate: false)
       Module.register_attribute(__MODULE__, :pk, accumulate: false)
       Module.register_attribute(__MODULE__, :attributes, accumulate: true)
 
@@ -56,11 +58,15 @@ defmodule RatchetWrench.Model do
       table_name = Module.get_attribute(__ENV__.module, :table_name)
       Module.put_attribute(__ENV__.module, :table_name, table_name)
 
+      uuid = Module.get_attribute(__ENV__.module, :uuid)
+      Module.put_attribute(__ENV__.module, :uuid, uuid)
+
       pk = Module.get_attribute(__ENV__.module, :pk)
       Module.put_attribute(__ENV__.module, :pk, pk)
 
       Module.eval_quoted __ENV__, [
         RatchetWrench.Model.__defstruct__(__ENV__.module),
+        RatchetWrench.Model.__valid_define_uuid__!(__ENV__.module),
         RatchetWrench.Model.__valid_define_pk__!(__ENV__.module),
         RatchetWrench.Model.__def_helper_funcs__(__ENV__.module)
       ]
@@ -75,27 +81,54 @@ defmodule RatchetWrench.Model do
     end
   end
 
+  def __valid_define_uuid__!(mod) do
+    attributes = Module.get_attribute(mod, :attributes)
+    uuid         = Module.get_attribute(mod, :uuid)
+
+    unless defined_column?(attributes, uuid) do
+      raise "Not define uuid in #{mod} module schema"
+    end
+  end
+
   def __valid_define_pk__!(mod) do
     attributes = Module.get_attribute(mod, :attributes)
     pk         = Module.get_attribute(mod, :pk)
 
+    if pk == nil do
+      raise "Must set pk in #{mod} module schema"
+    end
+
+    result = Enum.map(pk, fn(key) ->
+               defined_column?(attributes, key)
+             end) |> Enum.all?
+
+    if result == false do
+      raise "Not define colum name in #{mod} module schema pk"
+    end
+  end
+
+  def defined_column?(attributes, target) do
     result = attributes
-    |> Enum.map(fn {name, {_type, _default}} -> "#{name}" == "#{pk}" end)
+    |> Enum.map(fn {name, {_type, _default}} -> "#{name}" == "#{target}" end)
     |> Enum.any?
 
     if result == false do
-      raise "Not define pk in #{mod} module schema"
+      false
+    else
+      true
     end
   end
 
   def __def_helper_funcs__(mod) do
     table_name           = Module.get_attribute(mod, :table_name)
     attributes           = Module.get_attribute(mod, :attributes)
+    uuid                 = Module.get_attribute(mod, :uuid)
     pk                   = Module.get_attribute(mod, :pk)
 
     quote do
       def __table_name__, do: unquote(table_name)
       def __attributes__, do: unquote(attributes)
+      def __uuid__, do: unquote(uuid)
       def __pk__, do: unquote(pk)
     end
   end
@@ -128,6 +161,16 @@ defmodule RatchetWrench.Model do
 
   def __attribute__(mod, name, type, default) do
     Module.put_attribute(mod, :attributes, {name, {type, default}})
+  end
+
+  defmacro uuid(uuid) do
+    quote bind_quoted: [uuid: uuid] do
+      RatchetWrench.Model.__uuid__(__MODULE__, uuid)
+    end
+  end
+
+  def __uuid__(mod, uuid) do
+    Module.put_attribute(mod, :uuid, uuid)
   end
 
   defmacro pk(pk) do

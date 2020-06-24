@@ -6,17 +6,21 @@ defmodule RatchetWrench do
   def execute() do
     token = RatchetWrench.token
     connection = RatchetWrench.connection(token)
-    session = RatchetWrench.create_session(connection)
+    {:ok, session} = RatchetWrench.Session.create(connection)
     json = %{sql: "SELECT 1"}
     {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
     {:ok, result_set}
   end
 
   def token() do
     case Goth.Token.for_scope(token_scope()) do
       {:ok, token} -> token
+<<<<<<< HEAD
       {:error, _} -> raise "goth config error. Check env `GCP_CREDENTIALS` or config"
+=======
+      {:error, reason} -> {:error, reason}
+>>>>>>> origin/master
     end
   end
 
@@ -60,7 +64,7 @@ defmodule RatchetWrench do
     end
   end
 
-  defp database() do
+  def database() do
     System.get_env("RATCHET_WRENCH_DATABASE") || Application.fetch_env(:ratchet_wrench, :database)
   end
 
@@ -91,31 +95,31 @@ defmodule RatchetWrench do
     end
   end
 
-  def select_execute_sql(sql) do
-    json = %{sql: sql}
+  def select_execute_sql(sql, params) do
+    json = %{sql: sql, params: params}
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.create_session(connection)
+    {:ok, session} = RatchetWrench.Session.create(connection)
 
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
       {:ok, result_set} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:ok, result_set}
       {:error, reason} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:error, Poison.Parser.parse!(reason.body, %{})}
     end
   end
 
-  def execute_sql(sql, seqno \\ 1) do
+  def execute_sql(sql, params, param_types, seqno \\ 1) when is_binary(sql) and is_map(params) and is_integer(seqno)  do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.create_session(connection)
+    {:ok, session} = RatchetWrench.Session.create(connection)
     {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
-    json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql}
+    json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, paramTypes: param_types}
 
     case do_execute_sql(connection, session, transaction, json) do
       {:ok, result_set} ->
         RatchetWrench.commit_transaction(connection, session, transaction)
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:ok, result_set}
       {:error, reason} -> {:error, reason}
     end
@@ -135,22 +139,22 @@ defmodule RatchetWrench do
 
     case rollback_transaction(connection, session, transaction) do
       {:ok, _} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:error, reason_json}
       {:error, reason} ->
-        {:ok, _} = RatchetWrench.delete_session(connection, session)
+        {:ok, _} = RatchetWrench.Session.delete(connection, session)
         {:error, reason} # TODO: logging can not rollback
     end
   end
 
-  def auto_limit_offset_execute_sql(sql, limit \\ 1_000_000) do
-    {:ok, result_set_list} = do_auto_limit_offset_execute_sql(sql, limit)
+  def auto_limit_offset_execute_sql(sql, params, limit \\ 1_000_000) do
+    {:ok, result_set_list} = do_auto_limit_offset_execute_sql(sql, params, limit)
     {:ok, result_set_list}
   end
 
-  def do_auto_limit_offset_execute_sql(sql, limit, offset \\ 0, seqno \\ 1, acc \\ []) do
+  def do_auto_limit_offset_execute_sql(sql, params, limit, offset \\ 0, seqno \\ 1, acc \\ []) do
     limit_offset_sql = sql <> " LIMIT #{limit} OFFSET #{offset}"
-    case select_execute_sql(limit_offset_sql) do
+    case select_execute_sql(limit_offset_sql, params) do
       {:ok, result_set} ->
         if result_set.rows == nil do
           {:ok, []}
@@ -158,7 +162,7 @@ defmodule RatchetWrench do
           result_set_list = acc ++ [result_set]
           if limit == Enum.count(result_set.rows) do
             offset = offset + limit
-            do_auto_limit_offset_execute_sql(sql, limit, offset, seqno + 1, result_set_list)
+            do_auto_limit_offset_execute_sql(sql, params, limit, offset, seqno + 1, result_set_list)
           else
             {:ok, result_set_list}
           end
@@ -167,27 +171,37 @@ defmodule RatchetWrench do
         too_large_error_message = "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
         if reason["error"]["message"] == too_large_error_message do
           limit = div(limit, 2)
-          auto_limit_offset_execute_sql(sql, limit)
+          auto_limit_offset_execute_sql(sql, params, limit)
         end
     end
   end
 
-  def transaction_execute_sql(sql_list) when is_list(sql_list) do
+  def transaction_execute_sql(sql_map_list) when is_list(sql_map_list) do
+    valid_transaction_execute_sql_map_list!(sql_map_list)
+
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.create_session(connection)
+    {:ok, session} = RatchetWrench.Session.create(connection)
     {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
 
-    result_set_list = Enum.map(Enum.with_index(sql_list), fn({sql, seqno}) ->
+    result_set_list = Enum.map(Enum.with_index(sql_map_list), fn({map, seqno}) ->
       seqno = seqno + 1
-      RatchetWrench.Logger.info("Request transaction execute sql, seq: #{seqno}, transaction_id: #{transaction.id}, sql: #{sql}")
-      json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql}
+      sql = map.sql
+      params = map.params
+      param_types = map.param_types
+
+      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, sql: #{sql}")
+      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, params: " <> inspect params)
+      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, param_types: " <> inspect param_types)
+
+      RatchetWrench.Logger.info("Request transaction execute sql, seq: #{seqno}, transaction_id: #{transaction.id}")
+      json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, param_types: param_types}
 
       case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
         {:ok, result_set} ->
-          RatchetWrench.Logger.info("Transaction executed sql, seq: #{seqno}, transaction_id: #{transaction.id}, sql: #{sql}, result_set: #{inspect(result_set)}")
+          RatchetWrench.Logger.info("Transaction executed sql, seq: #{seqno}, transaction_id: #{transaction.id}")
           result_set
         {:error, reason} ->
-          RatchetWrench.Logger.info("Transaction executed sql error, execute rollabck, seq: #{seqno}, transaction_id: #{transaction.id}, sql: #{sql}")
+          RatchetWrench.Logger.info("Transaction executed sql error, execute rollabck, seq: #{seqno}, transaction_id: #{transaction.id}")
           case rollback_transaction(connection, session, transaction) do
             {:ok, _} ->
               RatchetWrench.Logger.error(Poison.Parser.parse!(reason.body, %{}))
@@ -197,16 +211,31 @@ defmodule RatchetWrench do
       end
     end)
     RatchetWrench.commit_transaction(connection, session, transaction)
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
     result_set_list
   end
 
+  def valid_transaction_execute_sql_map_list!(sql_map_list) do
+    Enum.each(sql_map_list, fn(map) ->
+      do_valid_transaction_execute_sql_map_list!(map, :sql)
+      do_valid_transaction_execute_sql_map_list!(map, :params)
+      do_valid_transaction_execute_sql_map_list!(map, :param_types)
+    end)
+  end
+
+  def do_valid_transaction_execute_sql_map_list!(map, key) do
+    unless Map.has_key?(map, key) do
+      raise "Not found sql #{key} in transaction execute sql map."
+    end
+  end
+
+
   def sql(sql) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.create_session(connection)
+    {:ok, session} = RatchetWrench.Session.create(connection)
     json = %{sql: sql}
     {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
-    {:ok, _} = RatchetWrench.delete_session(connection, session)
+    {:ok, _} = RatchetWrench.Session.delete(connection, session)
     result_set
   end
 end

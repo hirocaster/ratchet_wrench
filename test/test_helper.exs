@@ -8,7 +8,8 @@ defmodule Singer do
   use RatchetWrench.Model
 
   schema do
-    pk :singer_id
+    uuid :singer_id
+    pk [:singer_id]
     attributes singer_id: {"STRING", nil},
       first_name: {"STRING", nil},
       last_name: {"STRING", nil},
@@ -25,7 +26,8 @@ defmodule Data do
   use RatchetWrench.Model
 
   schema do
-    pk :data_id
+    uuid :data_id
+    pk [:data_id]
     attributes data_id: {"STRING", nil},
       string: {"STRING", ""},
       bool: {"BOOL", nil },
@@ -33,6 +35,21 @@ defmodule Data do
       float: {"FLOAT64", nil},
       date: {"DATE", nil},
       time_stamp: {"TIMESTAMP", nil}
+  end
+end
+
+defmodule User do
+  @moduledoc """
+  Sample model module for unit test.
+  """
+
+  use RatchetWrench.Model
+
+  schema do
+    uuid :user_id
+    pk [:user_id]
+    attributes user_id: {"STRING", nil},
+      name: {"STRING", nil}
   end
 end
 
@@ -44,28 +61,30 @@ defmodule UserItem do
   use RatchetWrench.Model
 
   schema do
-    pk :user_item_id
+    uuid :user_item_id
+    pk [:user_id, :user_item_id]
     attributes user_item_id: {"STRING", nil},
-      name: {"STRING", ""}
+      user_id: {"STRING", nil},
+      name: {"STRING", nil}
   end
 end
 
 defmodule TestHelper do
   def check_ready_table(struct) do
-    pk_name = struct.__struct__.__pk__
-    pk_value = "test_data"
-    {map, _} = Code.eval_string("%{#{pk_name}: '#{pk_value}'}")
+    uuid_name = struct.__struct__.__uuid__
+    uuid_value = ["uuid_test"]
+    {map, _} = Code.eval_string("%{#{uuid_name}: '#{uuid_value}'}")
     test_data = Map.merge(struct, map)
 
     {:ok, _} = insert_loop(test_data)
-    {:ok, _} = get_loop(test_data.__struct__, pk_value)
-    {:ok, _} = delete_loop(test_data.__struct__, pk_value)
+    {:ok, _} = get_loop(test_data.__struct__, uuid_value)
+    {:ok, _} = delete_loop(test_data.__struct__, uuid_value)
   end
 
   def insert_loop(struct) do
     case RatchetWrench.Repo.insert(struct) do
       {:ok, result} -> {:ok, result}
-      {:error, _} ->
+      {:error, _reason} ->
         Process.sleep(1000)
         insert_loop(struct)
     end
@@ -80,22 +99,22 @@ defmodule TestHelper do
     end
   end
 
-  def get_loop(module, pk_value) do
-    result = RatchetWrench.Repo.get(module, pk_value)
+  def get_loop(module, uuid_value) do
+    result = RatchetWrench.Repo.get(module, uuid_value)
     if result == nil do
       Process.sleep(1000)
-      get_loop(module, pk_value)
+      get_loop(module, uuid_value)
     else
       {:ok, result}
     end
   end
 
-  def delete_loop(module, pk_value) do
-    case RatchetWrench.Repo.delete(module, pk_value) do
+  def delete_loop(module, uuid_value) do
+    case RatchetWrench.Repo.delete(module, uuid_value) do
       {:ok, result} -> {:ok, result}
       {:error} ->
         Process.sleep(1000)
-        delete_loop(module, pk_value)
+        delete_loop(module, uuid_value)
     end
   end
 end
