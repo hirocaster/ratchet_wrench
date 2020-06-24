@@ -19,6 +19,10 @@ defmodule RatchetWrench.SessionPool do
     System.get_env("RATCHET_WRENCH_SESSION_MIN") || 10
   end
 
+  defp session_max do
+    System.get_env("RATCHET_WRENCH_SESSION_MAX") || 1000
+  end
+
   def start_link(pool \\ %RatchetWrench.Pool{}) do
     if Enum.empty?(pool.idle) do
       sessions = batch_create_session(startup_connection_num())
