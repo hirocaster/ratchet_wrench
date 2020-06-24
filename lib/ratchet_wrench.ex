@@ -16,8 +16,7 @@ defmodule RatchetWrench do
   def token() do
     case Goth.Token.for_scope(token_scope()) do
       {:ok, token} -> token
-      {:error, reason} -> IO.inspect reason
-      # {:error, _} -> raise "goth config error. Check env `GCP_CREDENTIALS` or config"
+      {:error, _} -> raise "goth config error. Check env `GCP_CREDENTIALS` or config"
     end
   end
 
@@ -32,8 +31,7 @@ defmodule RatchetWrench do
   def create_session(connection) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(connection, database()) do
       {:ok, session} -> session
-      {:error, reason} -> IO.inspect reason
-      # {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+      {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
     end
   end
 
@@ -41,7 +39,8 @@ defmodule RatchetWrench do
     json = %{sessionCount: session_count}
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(connection, database(), [{:body, json}]) do
       {:ok, response} -> response.session
-      {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+      {:error, reason} ->
+        raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
     end
   end
 
