@@ -32,6 +32,7 @@ defmodule RatchetWrench.MixProject do
       {:inflex, "~> 2.0.0" },
       {:elixir_uuid, "~> 1.2" },
       {:tzdata, "~> 1.0.3"},
+      {:mutex, "~> 1.1.0"},
       {:faker, "~> 0.13", only: :test},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false},
