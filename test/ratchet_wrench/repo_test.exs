@@ -2,8 +2,7 @@ defmodule RatchetWrench.RepoTest do
   use ExUnit.Case
 
   setup_all do
-    env_scope = RatchetWrench.token_scope()
-    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
+    start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
 
     ddl_singer = "CREATE TABLE data (
                    data_id STRING(36) NOT NULL,
@@ -25,10 +24,8 @@ defmodule RatchetWrench.RepoTest do
 
     ddl_list = [ddl_singer, ddl_data]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
-
-    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
-
     Process.sleep(10_000) # Wait DML
+
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
 
@@ -57,18 +54,14 @@ defmodule RatchetWrench.RepoTest do
         TestHelper.insert_loop(new_data)
       end)
     end)
-    |> Enum.map(&Task.await &1, 60000)
+    |> Enum.map(&Task.await &1, 60_000 * 5)
 
     now_tz = System.get_env("TZ")
     System.put_env("TZ", "Asia/Tokyo")
 
     on_exit fn ->
-      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
                                            "DROP TABLE data"])
-
-      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
-
       if now_tz == nil do
         System.delete_env("TZ")
       else

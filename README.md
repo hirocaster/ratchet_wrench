@@ -81,6 +81,27 @@ Sorry, will write sample more codes.
   - How to define model(Table) -> `test/test_helper.exs`
   - How to SELECT/INSERT/UPDATE -> `test/ratchet_wrench/repo_test.exs`
 
+### Setup config
+
+Your application.ex write to example.
+
+``` elixir
+  def start(_type, _args) do
+    children = [
+    ...
+      {RatchetWrench.SessionPool, %RatchetWrench.Pool{}}
+    ]
+    ...
+  end
+```
+
+### Shutdown
+
+Cleanup session in Google Cloud Spanner at shutdown your app.
+
+``` elixir
+Process.send(RatchetWrench.SessionPool, :kill, [])
+```
 
 ### Support type in Google Cloud Spanner
 
