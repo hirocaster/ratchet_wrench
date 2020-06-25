@@ -1,6 +1,5 @@
 defmodule RatchetWrench.SessionPool do
   use GenServer, shutdown: 10_000
-  require RatchetWrench.Mutex
   require Logger
 
   @session_update_boarder 60 * 55 # 55min
@@ -60,23 +59,11 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def checkout do
-    RatchetWrench.Mutex.lock do
-      GenServer.call(__MODULE__, :checkout)
-    end
+    GenServer.call(__MODULE__, :checkout, :infinity)
   end
 
   def checkin(session) do
-    if is_safe_session?(session) do
-      RatchetWrench.Mutex.lock do
-        GenServer.call(__MODULE__, {:checkin, session})
-      end
-    else
-        renew_session = new_session()
-        RatchetWrench.Mutex.lock do
-          GenServer.call(__MODULE__, {:checkin, renew_session})
-        end
-      delete_session(session)
-    end
+    GenServer.cast(__MODULE__, {:checkin, session})
   end
 
   def is_safe_session?(session) do
@@ -90,15 +77,13 @@ defmodule RatchetWrench.SessionPool do
 
   def session_bust(pool) do
     if Enum.count(pool.idle) < (session_min() / 2) do
-
       sessions_list = pool
                       |> calculation_session_bust_num()
                       |> session_batch_create()
 
-      RatchetWrench.Mutex.lock do
-        pool = Map.merge(pool, %RatchetWrench.Pool{idle: pool.idle ++ sessions_list})
-        pool
-      end
+
+      pool = Map.merge(pool, %RatchetWrench.Pool{idle: pool.idle ++ sessions_list})
+      pool
     else
       pool
     end
@@ -135,6 +120,7 @@ defmodule RatchetWrench.SessionPool do
 
   @impl GenServer
   def handle_info(:session_pool_monitor, pool) do
+    # IO.inspect pool
     set_interval()
     {:noreply, session_bust(pool)}
   end
@@ -165,23 +151,17 @@ defmodule RatchetWrench.SessionPool do
   end
 
   @impl GenServer
-  def handle_call({:checkin, session}, _from, pool) do
-    checkout_sessions = Enum.reduce(pool.checkout, [], fn(checkout_session, acc) ->
-                          if session.name != checkout_session.name do
-                            acc ++ [checkout_session]
-                          else
-                            acc
-                          end
-                        end)
-    pool = Map.merge(pool, %{checkout: checkout_sessions})
-    pool = Map.merge(pool, %{idle: pool.idle ++ [session]})
-    {:reply, pool, pool}
-  end
-
   def handle_call({:session_bust, session_list}, _from, pool) do
     pool = Map.merge(pool, %{idle: pool.idle ++ session_list})
     {:reply, pool, pool}
   end
+
+  @impl GenServer
+  def handle_call(:terminate_child, _from, pool) do
+    session_all_clear(pool)
+    {:stop, :shutdown, pool}
+  end
+
 
   def checkout_safe_session(pool) do
     if Enum.empty?(pool.idle) do
@@ -215,14 +195,24 @@ defmodule RatchetWrench.SessionPool do
     |> RatchetWrench.create_session
   end
 
-  # @impl GenServer
-  # def handle_cast({:checkin, session}, pool) do
-  #   IO.puts "!!! debug handle_cast checkin !!!"
-  #   IO.inspect session
-  #   IO.inspect pool
-  #   IO.inspect pool ++ [session]
-  #   {:noreply, pool ++ [session]}
-  # end
+  @impl GenServer
+  def handle_cast({:checkin, session}, pool) do
+    if is_safe_session?(session) do
+      pool = Map.merge(pool, %{idle: pool.idle ++ [session]})
+      {:noreply, pool}
+    else
+      checkout_sessions = Enum.reduce(pool.checkout, [], fn(checkout_session, acc) ->
+                            if session.name == checkout_session.name do
+                              acc
+                            else
+                              acc ++ [checkout_session]
+                            end
+                          end)
+      pool = Map.merge(pool, %{checkout: checkout_sessions})
+      pool = Map.merge(pool, %{idle: pool.idle ++ [new_session()]})
+      {:noreply, pool}
+    end
+  end
 
   @impl GenServer
   def terminate(_reason, pool) do
@@ -238,8 +228,7 @@ defmodule RatchetWrench.SessionPool do
   end
 
   defp session_all_clear(pool) do
-    token = RatchetWrench.token
-    connection = RatchetWrench.connection(token)
+    connection = RatchetWrench.token_data() |> RatchetWrench.connection()
 
     Enum.each(pool.idle, fn(session) ->
       {:ok, _} = RatchetWrench.delete_session(connection, session)

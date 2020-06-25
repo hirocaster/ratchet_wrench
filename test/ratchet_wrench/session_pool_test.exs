@@ -11,12 +11,7 @@ defmodule RatchetWrench.SessionPoolTest do
     session_bust_num = RatchetWrench.SessionPool.session_bust_num()
     System.put_env("RATCHET_WRENCH_SESSION_BUST", "10")
 
-    children = [
-      {RatchetWrench.SessionPool, %RatchetWrench.Pool{}},
-      {Mutex, name: RatchetWrenchSessionPoolMutex, meta: :ratchet_wrench_session_pool}
-    ]
-    {:ok, _pid} = Supervisor.start_link(children, strategy: :one_for_one)
-    :ok
+    start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
 
     on_exit fn ->
       System.put_env("RATCHET_WRENCH_SESSION_MIN", session_min  |> Integer.to_string())
@@ -31,24 +26,24 @@ defmodule RatchetWrench.SessionPoolTest do
     assert RatchetWrench.SessionPool.session_bust_num() == 10
   end
 
-  test "async .checkout() / .checkin()" do
-    session = RatchetWrench.SessionPool.checkout()
-    assert session.__struct__ == GoogleApi.Spanner.V1.Model.Session
-    RatchetWrench.SessionPool.checkin(session)
+  # test "async .checkout() / .checkin()" do
+  #   session = RatchetWrench.SessionPool.checkout()
+  #   assert session.__struct__ == GoogleApi.Spanner.V1.Model.Session
+  #   RatchetWrench.SessionPool.checkin(session)
 
-    0..3
-    |> Enum.map(fn(_) ->
-      Task.async(fn ->
-        session = RatchetWrench.SessionPool.checkout()
-        assert session.__struct__ == GoogleApi.Spanner.V1.Model.Session
-        RatchetWrench.SessionPool.checkin(session)
-      end)
-      # session = RatchetWrench.SessionPool.checkout()
-      # assert session.__struct__ == GoogleApi.Spanner.V1.Model.Session
-      # RatchetWrench.SessionPool.checkin(session)
-    end)
-    |> Enum.map(&Task.await &1, 60000)
-  end
+  #   0..3
+  #   |> Enum.map(fn(_) ->
+  #     Task.async(fn ->
+  #       session = RatchetWrench.SessionPool.checkout()
+  #       assert session.__struct__ == GoogleApi.Spanner.V1.Model.Session
+  #       RatchetWrench.SessionPool.checkin(session)
+  #     end)
+  #     # session = RatchetWrench.SessionPool.checkout()
+  #     # assert session.__struct__ == GoogleApi.Spanner.V1.Model.Session
+  #     # RatchetWrench.SessionPool.checkin(session)
+  #   end)
+  #   |> Enum.map(&Task.await &1, 60000)
+  # end
 
   test "FIFO in session pool" do
     session = RatchetWrench.SessionPool.checkout()
@@ -72,21 +67,24 @@ defmodule RatchetWrench.SessionPoolTest do
 
     new_pool = RatchetWrench.SessionPool.pool()
 
-    session_name_list = Enum.reduce(new_pool.idle, [], fn(session, acc) ->
+    session_name_list = Enum.reduce(new_pool.checkout, [], fn(session, acc) ->
                           acc ++ [session.name]
                         end)
-
     assert Enum.any?(session_name_list, fn(name) -> name == old_session.name end) == false
   end
 
   test "session bust at interval" do
     session1 = RatchetWrench.SessionPool.checkout()
     session2 = RatchetWrench.SessionPool.checkout()
+    session3 = RatchetWrench.SessionPool.checkout()
+    session4 = RatchetWrench.SessionPool.checkout() # idle empty and create new session
     Process.sleep(3000) # wait bust(session batch create)
     RatchetWrench.SessionPool.checkin(session1)
     RatchetWrench.SessionPool.checkin(session2)
+    RatchetWrench.SessionPool.checkin(session3)
+    RatchetWrench.SessionPool.checkin(session4)
 
-    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 13
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 14
   end
 
   # test "loop replace sessions in pool" do

@@ -3,9 +3,8 @@ defmodule RatchetWrenchTest do
   doctest RatchetWrench
 
   setup_all do
-    env_scope = RatchetWrench.token_scope()
+    start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
 
-    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
     ddl_singer = "CREATE TABLE data (
                    data_id STRING(36) NOT NULL,
                    string STRING(MAX),
@@ -26,10 +25,8 @@ defmodule RatchetWrenchTest do
 
     ddl_list = [ddl_singer, ddl_data]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
-
-    System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
-
     Process.sleep(10_000) # Wait apply DML
+
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
 
@@ -37,30 +34,18 @@ defmodule RatchetWrenchTest do
     RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
 
     on_exit fn ->
-      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
                                            "DROP TABLE data"])
-
-      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", env_scope)
     end
   end
 
-  describe "Operation DDL" do
-    setup do
-      System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.admin")
 
-      on_exit fn ->
-        System.put_env("RATCHET_WRENCH_TOKEN_SCOPE", "https://www.googleapis.com/auth/spanner.data")
-      end
-    end
-
-    test "update ddl, error syntax" do
-      ddl_error = "Error Syntax DDL"
-      ddl_list = [ddl_error]
-      {:error, reason} = RatchetWrench.update_ddl(ddl_list)
-      assert reason["error"]["code"] == 400
-      assert reason["error"]["message"] == "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
-    end
+  test "update ddl, error syntax" do
+    ddl_error = "Error Syntax DDL"
+    ddl_list = [ddl_error]
+    {:error, reason} = RatchetWrench.update_ddl(ddl_list)
+    assert reason["error"]["code"] == 400
+    assert reason["error"]["message"] == "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
   end
 
   test "get token" do
