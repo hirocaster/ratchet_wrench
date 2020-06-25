@@ -89,7 +89,7 @@ Your application.ex write to example.
   def start(_type, _args) do
     children = [
     ...
-      RatchetWrench.SessionPool
+      {RatchetWrench.SessionPool, %RatchetWrench.Pool{}}
     ]
     ...
   end
