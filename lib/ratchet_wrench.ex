@@ -125,12 +125,17 @@ defmodule RatchetWrench do
   def execute_sql(sql, params, param_types, seqno \\ 1) when is_binary(sql) and is_map(params) and is_integer(seqno)  do
     connection = RatchetWrench.token |> RatchetWrench.connection
     session = RatchetWrench.SessionPool.checkout()
-    {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
-    json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, paramTypes: param_types}
+    transaction = RatchetWrench.TransactionManager.begin(session)
+
+    json = %{seqno: transaction.seqno,
+             transaction: %{id: transaction.transaction.id},
+             sql: sql,
+             params: params,
+             paramTypes: param_types}
 
     case do_execute_sql(connection, session, transaction, json) do
       {:ok, result_set} ->
-        RatchetWrench.commit_transaction(connection, session, transaction)
+        {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
         RatchetWrench.SessionPool.checkin(session)
         {:ok, result_set}
       {:error, reason} -> {:error, reason}
