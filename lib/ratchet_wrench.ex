@@ -122,10 +122,10 @@ defmodule RatchetWrench do
     end
   end
 
-  def execute_sql(sql, params, param_types, seqno \\ 1) when is_binary(sql) and is_map(params) and is_integer(seqno)  do
+  def execute_sql(sql, params, param_types) when is_binary(sql) and is_map(params) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.SessionPool.checkout()
-    transaction = RatchetWrench.TransactionManager.begin(session)
+    transaction = RatchetWrench.TransactionManager.begin()
+    session = transaction.session
 
     json = %{seqno: transaction.seqno,
              transaction: %{id: transaction.transaction.id},
@@ -134,18 +134,14 @@ defmodule RatchetWrench do
              paramTypes: param_types}
 
     case do_execute_sql(connection, session, transaction, json) do
-      {:ok, result_set} ->
-        {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
-        RatchetWrench.SessionPool.checkin(session)
-        {:ok, result_set}
+      {:ok, result_set} -> {:ok, result_set}
       {:error, reason} -> {:error, reason}
     end
   end
 
   def do_execute_sql(connection, session, transaction, json) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-      {:ok, result_set} ->
-        {:ok, result_set}
+      {:ok, result_set} -> {:ok, result_set}
       {:error, reason} -> error_googleapi(connection, session, transaction, reason)
     end
   end
@@ -193,45 +189,55 @@ defmodule RatchetWrench do
     end
   end
 
-  def transaction_execute_sql(sql_map_list) when is_list(sql_map_list) do
-    valid_transaction_execute_sql_map_list!(sql_map_list)
-
-    connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.SessionPool.checkout()
-    {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
-
-    result_set_list = Enum.map(Enum.with_index(sql_map_list), fn({map, seqno}) ->
-      seqno = seqno + 1
-      sql = map.sql
-      params = map.params
-      param_types = map.param_types
-
-      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, sql: #{sql}")
-      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, params: " <> inspect params)
-      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, param_types: " <> inspect param_types)
-
-      RatchetWrench.Logger.info("Request transaction execute sql, seq: #{seqno}, transaction_id: #{transaction.id}")
-      json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, param_types: param_types}
-
-      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-        {:ok, result_set} ->
-          RatchetWrench.Logger.info("Transaction executed sql, seq: #{seqno}, transaction_id: #{transaction.id}")
-          result_set
-        {:error, reason} ->
-          RatchetWrench.Logger.info("Transaction executed sql error, execute rollabck, seq: #{seqno}, transaction_id: #{transaction.id}")
-          case rollback_transaction(connection, session, transaction) do
-            {:ok, _} ->
-              RatchetWrench.Logger.error(Poison.Parser.parse!(reason.body, %{}))
-              raise "Transaction executed sql error, rollbacked!"
-            {:error, _} -> raise "Transaction executed sql error, can't rollback error. Check your database!"
-          end
-      end
-    end)
-    RatchetWrench.commit_transaction(connection, session, transaction)
-    RatchetWrench.SessionPool.checkin(session)
-
-    result_set_list
+  def transaction(callback) when is_function(callback) do
+    transaction = RatchetWrench.TransactionManager.begin()
+    try do
+      callback.()
+    after
+      RatchetWrench.TransactionManager.delete_key()
+      {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+    end
   end
+
+  # def transaction_execute_sql(sql_map_list) when is_list(sql_map_list) do
+  #   valid_transaction_execute_sql_map_list!(sql_map_list)
+
+  #   connection = RatchetWrench.token |> RatchetWrench.connection
+  #   session = RatchetWrench.SessionPool.checkout()
+  #   {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
+
+  #   result_set_list = Enum.map(Enum.with_index(sql_map_list), fn({map, seqno}) ->
+  #     seqno = seqno + 1
+  #     sql = map.sql
+  #     params = map.params
+  #     param_types = map.param_types
+
+  #     RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, sql: #{sql}")
+  #     RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, params: " <> inspect params)
+  #     RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, param_types: " <> inspect param_types)
+
+  #     RatchetWrench.Logger.info("Request transaction execute sql, seq: #{seqno}, transaction_id: #{transaction.id}")
+  #     json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, param_types: param_types}
+
+  #     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
+  #       {:ok, result_set} ->
+  #         RatchetWrench.Logger.info("Transaction executed sql, seq: #{seqno}, transaction_id: #{transaction.id}")
+  #         result_set
+  #       {:error, reason} ->
+  #         RatchetWrench.Logger.info("Transaction executed sql error, execute rollabck, seq: #{seqno}, transaction_id: #{transaction.id}")
+  #         case rollback_transaction(connection, session, transaction) do
+  #           {:ok, _} ->
+  #             RatchetWrench.Logger.error(Poison.Parser.parse!(reason.body, %{}))
+  #             raise "Transaction executed sql error, rollbacked!"
+  #           {:error, _} -> raise "Transaction executed sql error, can't rollback error. Check your database!"
+  #         end
+  #     end
+  #   end)
+  #   RatchetWrench.commit_transaction(connection, session, transaction)
+  #   RatchetWrench.SessionPool.checkin(session)
+
+  #   result_set_list
+  # end
 
   def valid_transaction_execute_sql_map_list!(sql_map_list) do
     Enum.each(sql_map_list, fn(map) ->
