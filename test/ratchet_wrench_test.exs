@@ -152,9 +152,11 @@ defmodule RatchetWrenchTest do
       assert singer.inserted_at == updated_singer.inserted_at
       diff = DateTime.diff(updated_singer.updated_at, updated_singer.inserted_at)
       assert diff >= 1
+
+      RatchetWrench.Repo.delete(Singer, ["test transaction function"])
     end)
 
-    RatchetWrench.Repo.delete(Singer, ["test transaction function"])
+    assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
   end
 
   # test "Use transaction" do
