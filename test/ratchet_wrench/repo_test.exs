@@ -256,15 +256,27 @@ defmodule RatchetWrench.RepoTest do
     end
   end
 
-  test ".params_insert_values_map/1" do
-    singer = %Singer{first_name: "test_first_name"}
-    params = RatchetWrench.Repo.params_insert_values_map(singer)
-    assert params.first_name == "test_first_name"
-    assert params.last_name == nil
-    assert byte_size(params.singer_id ) == 36 # uuidv4
-    assert is_binary(params.inserted_at)
-    assert is_binary(params.updated_at)
-    assert params.inserted_at == params.updated_at
+  test ".convert_to_params/1" do
+    date = Faker.Date.date_of_birth()
+
+    {:ok, time_stamp, 0} = DateTime.from_iso8601("2015-01-23 23:50:07Z")
+
+    data = %Data{data_id: "convert_to_params/1",
+                 string: "string",
+                 bool: true,
+                 int: 999,
+                 float: 99.9,
+                 date: date,
+                 time_stamp: time_stamp}
+
+    params = RatchetWrench.Repo.convert_to_params(data)
+    assert params.data_id == "convert_to_params/1"
+    assert params.string == "string"
+    assert params.bool
+    assert params.int == "999"
+    assert params.float == 99.9
+    assert params.date == "#{date}"
+    assert params.time_stamp == "2015-01-23T23:50:07Z"
   end
 
   test ".paramTypes/1" do

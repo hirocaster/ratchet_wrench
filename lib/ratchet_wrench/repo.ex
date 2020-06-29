@@ -67,9 +67,12 @@ defmodule RatchetWrench.Repo do
 
 
   def insert(struct) do
-    struct = set_timestamps(struct)
+    struct = struct
+             |> set_uuid_value()
+             |> set_timestamps()
+
     sql = insert_sql(struct)
-    params = params_insert_values_map(struct)
+    params = convert_to_params(struct)
     param_types = param_types(struct.__struct__)
 
     if RatchetWrench.TransactionManager.exist_transaction?() do
@@ -89,7 +92,7 @@ defmodule RatchetWrench.Repo do
 
   defp set_timestamps(struct) do
     now_timestamp = RatchetWrench.DateTime.now()
-    set_uuid_value(struct)
+    struct
     |> set_inserted_at_value(now_timestamp)
     |> set_updated_at_value(now_timestamp)
   end
@@ -109,12 +112,8 @@ defmodule RatchetWrench.Repo do
     "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
   end
 
-  def params_insert_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    set_uuid_value(struct)
-    |> set_inserted_at_value(now_timestamp)
-    |> set_updated_at_value(now_timestamp)
+  def convert_to_params(struct) do
+    struct
     |> Map.from_struct
     |> Enum.reduce(%{}, fn({key, value}, acc) ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
