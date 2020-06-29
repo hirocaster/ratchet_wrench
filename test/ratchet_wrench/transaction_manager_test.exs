@@ -15,6 +15,16 @@ defmodule RatchetWrench.TransactionManagerTest do
     assert transaction.seqno == 1
     assert transaction.transaction.__struct__ == GoogleApi.Spanner.V1.Model.Transaction
 
+    transaction2 = RatchetWrench.TransactionManager.begin()
+    assert transaction2.seqno == 2
+    transaction3 = RatchetWrench.TransactionManager.begin()
+    assert transaction3.seqno == 3
+    transaction4 = RatchetWrench.TransactionManager.begin()
+    assert transaction4.seqno == 4
+    transaction5 = RatchetWrench.TransactionManager.begin()
+    assert transaction5.seqno == 5
+
+
     keys = RatchetWrench.TransactionManager.get_keys()
     assert self() in keys
   end

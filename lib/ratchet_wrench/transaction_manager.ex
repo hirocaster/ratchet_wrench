@@ -9,7 +9,9 @@ defmodule RatchetWrench.TransactionManager do
       transaction
     else
       seqno = transaction.seqno
-      Map.merge(transaction, %{seqno: seqno + 1})
+      transaction = Map.merge(transaction, %{seqno: seqno + 1})
+      Process.put(key, transaction)
+      transaction
     end
   end
 
