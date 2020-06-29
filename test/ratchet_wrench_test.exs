@@ -139,11 +139,11 @@ defmodule RatchetWrenchTest do
   end
 
   test ".transaction/1" do
-    {:ok, singer} = RatchetWrench.transaction(fn ->
-      RatchetWrench.Repo.insert(%Singer{singer_id: "test transaction function", first_name: "trans func"})
+    RatchetWrench.transaction(fn ->
+      {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: "test transaction function",
+                                                        first_name: "trans func"})
+      assert singer == RatchetWrench.Repo.get(Singer, ["test transaction function"])
     end)
-
-    assert singer == RatchetWrench.Repo.get(Singer, ["test transaction function"])
 
     RatchetWrench.Repo.delete(Singer, ["test transaction function"])
   end

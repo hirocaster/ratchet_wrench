@@ -4,9 +4,18 @@ defmodule RatchetWrench.Repo do
 
     sql = get_sql(module)
     params = params_pk_map(module, pk_value_list)
+    param_types = param_types(module)
 
-    {:ok, result_set} = RatchetWrench.select_execute_sql(sql, params)
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      {:ok, result_set} = RatchetWrench.execute_sql(sql, params, param_types)
+      get_first_or_nil(module, result_set)
+    else
+      {:ok, result_set} = RatchetWrench.select_execute_sql(sql, params)
+      get_first_or_nil(module, result_set)
+    end
+  end
 
+  defp get_first_or_nil(module, result_set) do
     if result_set.rows == nil do
       nil
     else
