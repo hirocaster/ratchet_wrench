@@ -143,6 +143,15 @@ defmodule RatchetWrenchTest do
       {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: "test transaction function",
                                                         first_name: "trans func"})
       assert singer == RatchetWrench.Repo.get(Singer, ["test transaction function"])
+
+      update_singer = Map.merge(singer, %{first_name: "trans2"})
+      Process.sleep(1000) # wait time diff
+      {:ok, updated_singer} = RatchetWrench.Repo.set(update_singer)
+
+      assert updated_singer.first_name == "trans2"
+      assert singer.inserted_at == updated_singer.inserted_at
+      diff = DateTime.diff(updated_singer.updated_at, updated_singer.inserted_at)
+      assert diff >= 1
     end)
 
     RatchetWrench.Repo.delete(Singer, ["test transaction function"])
