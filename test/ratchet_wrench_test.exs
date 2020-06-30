@@ -164,8 +164,7 @@ defmodule RatchetWrenchTest do
     |> Enum.map(fn(_) ->
       Task.async(fn ->
         RatchetWrench.transaction(fn ->
-          id = "transaction_in_async" <> Faker.String.base64(12)
-
+          id = UUID.uuid4()
           {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: id,
                                                              first_name: "trans func #{id}"})
           assert singer == RatchetWrench.Repo.get(Singer, [id])
