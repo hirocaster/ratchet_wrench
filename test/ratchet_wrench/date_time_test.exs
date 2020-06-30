@@ -39,4 +39,13 @@ defmodule RatchetWrench.DateTimeTest do
     now_datetime = RatchetWrench.DateTime.now("Asia/Tokyo")
     assert now_datetime.time_zone == "Asia/Tokyo"
   end
+
+  test ".trancate_suffix_zero/1" do
+    {:ok, dt, 0} = DateTime.from_iso8601("2020-06-30 05:11:40.028120Z")
+    assert "#{RatchetWrench.DateTime.trancate_suffix_zero(dt)}" == "2020-06-30 05:11:40.02812Z"
+    {:ok, dt, 0} = DateTime.from_iso8601("2020-06-30 05:11:40.028100Z")
+    assert "#{RatchetWrench.DateTime.trancate_suffix_zero(dt)}" == "2020-06-30 05:11:40.0281Z"
+    {:ok, dt, 0} = DateTime.from_iso8601("2020-06-30 05:11:40.020000Z")
+    assert "#{RatchetWrench.DateTime.trancate_suffix_zero(dt)}" == "2020-06-30 05:11:40.02Z"
+  end
 end
