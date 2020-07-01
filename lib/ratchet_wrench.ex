@@ -3,6 +3,8 @@ defmodule RatchetWrench do
   RatchetWrench is a easily use Google Cloud Spanner by Elixir.
   """
 
+  require Logger
+
   def execute() do
     token = RatchetWrench.token
     connection = RatchetWrench.connection(token)
@@ -202,12 +204,13 @@ defmodule RatchetWrench do
       result = callback.()
       RatchetWrench.TransactionManager.delete_key()
       {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
-      {:ok, result}
+      result
     rescue
-      e in RuntimeError ->
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
         {:ok, _empty} = RatchetWrench.TransactionManager.rollback(transaction)
         RatchetWrench.TransactionManager.delete_key()
-        {:error, e}
+        {:error, err}
     end
   end
 end

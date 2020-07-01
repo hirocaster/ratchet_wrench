@@ -1,5 +1,6 @@
 defmodule RatchetWrenchTest do
   use ExUnit.Case
+  import ExUnit.CaptureLog
   doctest RatchetWrench
 
   setup_all do
@@ -158,32 +159,35 @@ defmodule RatchetWrenchTest do
     assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
   end
 
-  test ".transaction/1 raise in function" do
+  test "Raise RuntimeError in .transaction/1" do
     uuid = UUID.uuid4()
 
-    {:error, e} = RatchetWrench.transaction(fn ->
-      {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
-                                                         first_name: "trans func"})
-      assert singer == RatchetWrench.Repo.get(Singer, [uuid])
-      raise "raise test .transaction/1"
-    end)
-
-    assert nil == RatchetWrench.Repo.get(Singer, [uuid])
-    assert e.__struct__ == RuntimeError
-    assert e.message == "raise test .transaction/1"
-  end
-
-  test ".transaction!/1 raise in function" do
-    uuid = UUID.uuid4()
-
-    assert_raise RuntimeError, "raise test .transaction!/1", fn ->
-      RatchetWrench.transaction!(fn ->
-        {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
+    assert capture_log(fn ->
+      {:error, e} = RatchetWrench.transaction(fn ->
+        {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
                                                         first_name: "trans func"})
         assert singer == RatchetWrench.Repo.get(Singer, [uuid])
-        raise "raise test .transaction!/1"
+        raise "raise test .transaction/1"
       end)
-    end
+      assert nil == RatchetWrench.Repo.get(Singer, [uuid])
+      assert e.__struct__ == RuntimeError
+      assert e.message == "raise test .transaction/1"
+    end) =~ "raise test .transaction/1"
+  end
+
+  test "Raise TransactionError in .transaction!/1 " do
+    uuid = UUID.uuid4()
+
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.TransactionError, fn ->
+        RatchetWrench.transaction!(fn ->
+          {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
+                                                            first_name: "trans func"})
+          assert singer == RatchetWrench.Repo.get(Singer, [uuid])
+          raise RatchetWrench.Exception.TransactionError
+        end)
+      end
+    end) =~ "Raise exception in transaction."
 
     assert nil == RatchetWrench.Repo.get(Singer, [uuid])
   end
@@ -194,7 +198,7 @@ defmodule RatchetWrenchTest do
       Task.async(fn ->
         RatchetWrench.transaction(fn ->
           id = UUID.uuid4()
-          {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: id,
+          {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: id,
                                                              first_name: "trans func #{id}"})
           assert singer == RatchetWrench.Repo.get(Singer, [id])
 
