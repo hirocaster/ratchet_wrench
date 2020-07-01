@@ -39,7 +39,6 @@ defmodule RatchetWrenchTest do
     end
   end
 
-
   test "update ddl, error syntax" do
     ddl_error = "Error Syntax DDL"
     ddl_list = [ddl_error]
