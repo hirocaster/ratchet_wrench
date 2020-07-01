@@ -118,13 +118,30 @@ defmodule RatchetWrench do
       {:ok, result_set} ->
         RatchetWrench.SessionPool.checkin(session)
         {:ok, result_set}
-      {:error, reason} ->
+      {:error, client} ->
         RatchetWrench.SessionPool.checkin(session)
-        {:error, Poison.Parser.parse!(reason.body, %{})}
+        request_api_error(client)
+    end
+  end
+
+  def request_api_error(api_client) do
+    try do
+      raise RatchetWrench.Exception.APIRequestError, api_client
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
     end
   end
 
   def execute_sql(sql, params, param_types) when is_binary(sql) and is_map(params) do
+    case do_execute_sql(sql, params, param_types) do
+      {:ok, result_set} -> {:ok, result_set}
+      {:error, client} -> request_api_error(client)
+    end
+  end
+
+  def do_execute_sql(sql, params, param_types) do
     connection = RatchetWrench.token |> RatchetWrench.connection
     transaction = RatchetWrench.TransactionManager.begin()
     session = transaction.session
@@ -135,30 +152,9 @@ defmodule RatchetWrench do
              params: params,
              paramTypes: param_types}
 
-    case do_execute_sql(connection, session, transaction, json) do
-      {:ok, result_set} -> {:ok, result_set}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  def do_execute_sql(connection, session, transaction, json) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
       {:ok, result_set} -> {:ok, result_set}
-      {:error, reason} -> error_googleapi(connection, session, transaction, reason)
-    end
-  end
-
-  def error_googleapi(connection, session, transaction, reason) do
-    # TODO: logging error
-    reason_json = Poison.Parser.parse!(reason.body, %{})
-
-    case rollback_transaction(connection, session, transaction) do
-      {:ok, _} ->
-        RatchetWrench.SessionPool.checkin(session)
-        {:error, reason_json}
-      {:error, reason} ->
-        RatchetWrench.SessionPool.checkin(session)
-        {:error, reason} # TODO: logging can not rollback
+      {:error, client} -> {:error, client}
     end
   end
 
@@ -182,7 +178,8 @@ defmodule RatchetWrench do
             {:ok, result_set_list}
           end
         end
-      {:error, reason} ->
+      {:error, exception} ->
+        reason = Poison.Parser.parse!(exception.client.body, %{})
         too_large_error_message = "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
         if reason["error"]["message"] == too_large_error_message do
           limit = div(limit, 2)

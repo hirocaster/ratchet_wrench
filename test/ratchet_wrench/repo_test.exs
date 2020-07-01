@@ -1,5 +1,6 @@
 defmodule RatchetWrench.RepoTest do
   use ExUnit.Case
+  import ExUnit.CaptureLog
 
   setup_all do
     start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
@@ -84,6 +85,14 @@ defmodule RatchetWrench.RepoTest do
     end
   end
 
+  test ".get/2 bad pk list args `PkCountMissMatchInListError`" do
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.PkCountMissMatchInListError, fn ->
+        RatchetWrench.Repo.get!(Singer, ["3", "over_count_pk"])
+      end
+    end) =~ "Pk count mismatch in args List type."
+  end
+
   test "get not found id" do
     not_exist_id = ["999999999"]
     assert RatchetWrench.Repo.get(Singer, not_exist_id) == nil
@@ -159,8 +168,10 @@ defmodule RatchetWrench.RepoTest do
   end
 
   test "get all records from Data" do
-    all_data_list = RatchetWrench.Repo.all(%Data{})
-    assert Enum.count(all_data_list) == 100
+    assert capture_log(fn ->
+      all_data_list = RatchetWrench.Repo.all(%Data{})
+      assert Enum.count(all_data_list) == 100
+    end) =~ "Result set too large."
   end
 
   test "get all records and where from Singer" do
@@ -197,10 +208,15 @@ defmodule RatchetWrench.RepoTest do
   test "where DML syntax error" do
     where_sql = "first_name >< @first_name"
     params    = %{first_name: "syntax DML error"}
-    {:error, reason} = RatchetWrench.Repo.where(%Singer{}, where_sql, params)
-    assert reason["error"]["code"] == 400
-    assert reason["error"]["status"] == "INVALID_ARGUMENT"
-    assert reason["error"]["message"] =~ "Syntax error: Unexpected "
+
+    assert capture_log(fn ->
+      {:error, exception} = RatchetWrench.Repo.where(%Singer{}, where_sql, params)
+      assert exception.client.status == 400
+      reason = Poison.Parser.parse!(exception.client.body, %{})
+      assert reason["error"]["code"] == 400
+      assert reason["error"]["status"] == "INVALID_ARGUMENT"
+      assert reason["error"]["message"] =~ "Syntax error: Unexpected "
+    end) =~ "(RatchetWrench.Exception.APIRequestError) Request API error."
   end
 
   test "convert value to SQL value" do
@@ -256,10 +272,6 @@ defmodule RatchetWrench.RepoTest do
 
   test ".valid_pk_value_list!/2" do
     assert RatchetWrench.Repo.valid_pk_value_list!(UserItem, [1, 10]) == nil
-
-    assert_raise RuntimeError, fn ->
-      RatchetWrench.Repo.valid_pk_value_list!(UserItem, [1])
-    end
   end
 
   test ".convert_to_params/1" do
