@@ -1,5 +1,6 @@
 defmodule RatchetWrench.Repo do
   def get(module, pk_value_list) do
+  def get(module, pk_value_list) when is_list(pk_value_list) do
     valid_pk_value_list!(module, pk_value_list)
 
     sql = get_sql(module)

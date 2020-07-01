@@ -78,6 +78,12 @@ defmodule RatchetWrench.RepoTest do
     assert id_3_singer.first_name == "Kena"
   end
 
+  test ".get/2 bad args" do
+    assert_raise FunctionClauseError, fn ->
+      RatchetWrench.Repo.get(Singer, "3")
+    end
+  end
+
   test "get not found id" do
     not_exist_id = ["999999999"]
     assert RatchetWrench.Repo.get(Singer, not_exist_id) == nil
