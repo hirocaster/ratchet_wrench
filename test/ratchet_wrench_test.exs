@@ -158,6 +158,36 @@ defmodule RatchetWrenchTest do
     assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
   end
 
+  test ".transaction/1 raise in function" do
+    uuid = UUID.uuid4()
+
+    {:error, e} = RatchetWrench.transaction(fn ->
+      {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
+                                                         first_name: "trans func"})
+      assert singer == RatchetWrench.Repo.get(Singer, [uuid])
+      raise "raise test .transaction/1"
+    end)
+
+    assert nil == RatchetWrench.Repo.get(Singer, [uuid])
+    assert e.__struct__ == RuntimeError
+    assert e.message == "raise test .transaction/1"
+  end
+
+  test ".transaction!/1 raise in function" do
+    uuid = UUID.uuid4()
+
+    assert_raise RuntimeError, "raise test .transaction!/1", fn ->
+      RatchetWrench.transaction!(fn ->
+        {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
+                                                        first_name: "trans func"})
+        assert singer == RatchetWrench.Repo.get(Singer, [uuid])
+        raise "raise test .transaction!/1"
+      end)
+    end
+
+    assert nil == RatchetWrench.Repo.get(Singer, [uuid])
+  end
+
   test "Use transaction in async" do
     0..4
     |> Enum.map(fn(_) ->

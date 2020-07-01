@@ -33,6 +33,22 @@ defmodule RatchetWrench.TransactionManager do
     end
   end
 
+  def rollback(transaction) do
+    if exist_transaction?() do
+      {:ok, empty} = _rollback_transaction(transaction)
+      {:ok, empty}
+    else
+      {:error, "not found transaction"}
+    end
+  end
+
+  def _rollback_transaction(transaction) do
+    connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+    session = transaction.session
+    RatchetWrench.rollback_transaction(connection, session, transaction.transaction)
+  end
+
+
   def delete_key() do
     key = self()
     Process.delete(key)

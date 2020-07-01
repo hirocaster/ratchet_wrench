@@ -189,13 +189,25 @@ defmodule RatchetWrench do
     end
   end
 
+  def transaction!(callback) when is_function(callback) do
+    case transaction(callback) do
+      {:ok, callback_result} -> callback_result
+      {:error, e} -> raise e
+    end
+  end
+
   def transaction(callback) when is_function(callback) do
     transaction = RatchetWrench.TransactionManager.begin()
     try do
-      callback.()
-    after
+      result = callback.()
       RatchetWrench.TransactionManager.delete_key()
       {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+      {:ok, result}
+    rescue
+      e in RuntimeError ->
+        {:ok, _empty} = RatchetWrench.TransactionManager.rollback(transaction)
+        RatchetWrench.TransactionManager.delete_key()
+        {:error, e}
     end
   end
 end
