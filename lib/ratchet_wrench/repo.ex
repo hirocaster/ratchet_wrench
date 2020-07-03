@@ -174,25 +174,41 @@ defmodule RatchetWrench.Repo do
        end)
   end
 
-  def set(struct) do
-    struct = set_update_timestamp(struct)
-    sql = update_sql(struct)
-    params = params_update_values_map(struct)
-    param_types = param_types(struct.__struct__)
-
-    if RatchetWrench.TransactionManager.exist_transaction?() do
-      do_set(struct, sql, params, param_types)
-    else
-      RatchetWrench.transaction(fn ->
-        do_set(struct, sql, params, param_types)
-      end)
+  def set!(struct) when is_map(struct) do
+    case do_set(struct) do
+      {:ok, struct} -> {:ok, struct}
+      {:error, exception} -> raise exception
     end
   end
 
-  defp do_set(struct, sql, params, param_types) do
-    case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, _} -> {:ok, struct}
-      {:error, exception} -> {:error, exception}
+  def set(struct) when is_map(struct)do
+    do_set(struct)
+  end
+
+  defp do_set(struct) when is_map(struct) do
+    try do
+      struct = set_update_timestamp(struct)
+      sql = update_sql(struct)
+      params = params_update_values_map(struct)
+      param_types = param_types(struct.__struct__)
+
+      if RatchetWrench.TransactionManager.exist_transaction?() do
+        case RatchetWrench.execute_sql(sql, params, param_types) do
+          {:ok, _} -> {:ok, struct}
+          {:error, exception} -> {:error, exception}
+        end
+      else
+        RatchetWrench.transaction(fn ->
+          case RatchetWrench.execute_sql(sql, params, param_types) do
+            {:ok, _} -> {:ok, struct}
+            {:error, exception} -> {:error, exception}
+          end
+        end)
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
     end
   end
 

@@ -159,6 +159,17 @@ defmodule RatchetWrench.RepoTest do
     assert singer_kena.first_name == "Kena"
   end
 
+  test ".set!/1" do
+    id_3_singer = RatchetWrench.Repo.get(Singer, ["3"])
+    update_id_3_singer = Map.merge(id_3_singer, %{invalid_column: "invalid_data"})
+
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+        RatchetWrench.Repo.set!(update_id_3_singer)
+      end
+    end) =~ "Unrecognized name: invalid_column"
+  end
+
   test "get all records from Singer" do
     singers = RatchetWrench.Repo.all(%Singer{})
     assert Enum.count(singers) == 2
