@@ -238,25 +238,45 @@ defmodule RatchetWrench.Repo do
     end)
   end
 
-  def delete(module, pk_value_list) do
-    valid_pk_value_list!(module, pk_value_list)
+  def delete!(module, pk_value_list) when is_list(pk_value_list) do
+    case do_delete(module, pk_value_list) do
+      {:ok, result} -> result
+      {:error, exception} -> raise exception
+    end
+  end
 
-    sql = delete_sql(module)
-    params = params_pk_map(module, pk_value_list)
-    param_types = param_types(module)
+  def delete(module, pk_value_list) when is_list(pk_value_list) do
+    case do_delete(module, pk_value_list) do
+      {:ok, result_set} -> {:ok, result_set}
+      {:error, exception} -> {:error, exception}
+    end
+  end
 
-    if RatchetWrench.TransactionManager.exist_transaction?() do
-      case RatchetWrench.execute_sql(sql, params, param_types) do
-        {:ok, result_set} -> {:ok, result_set}
-        {:error, exception} -> {:error, exception}
-      end
-    else
-      RatchetWrench.transaction(fn ->
+  def do_delete(module, pk_value_list) when is_list(pk_value_list) do
+    try do
+      valid_pk_value_list!(module, pk_value_list)
+
+      sql = delete_sql(module)
+      params = params_pk_map(module, pk_value_list)
+      param_types = param_types(module)
+
+      if RatchetWrench.TransactionManager.exist_transaction?() do
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, result_set} -> {:ok, result_set}
           {:error, exception} -> {:error, exception}
         end
-      end)
+      else
+        RatchetWrench.transaction(fn ->
+          case RatchetWrench.execute_sql(sql, params, param_types) do
+            {:ok, result_set} -> {:ok, result_set}
+            {:error, exception} -> {:error, exception}
+          end
+        end)
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+      {:error, err}
     end
   end
 

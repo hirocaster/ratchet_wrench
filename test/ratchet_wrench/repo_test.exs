@@ -170,6 +170,14 @@ defmodule RatchetWrench.RepoTest do
     end) =~ "Unrecognized name: invalid_column"
   end
 
+  test ".delete!/2" do
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+        RatchetWrench.Repo.delete!(Singer, [3])
+      end
+    end) =~ "Invalid value for bind parameter singer_id:"
+  end
+
   test "get all records from Singer" do
     singers = RatchetWrench.Repo.all(%Singer{})
     assert Enum.count(singers) == 2
