@@ -89,7 +89,10 @@ defmodule RatchetWrench.Repo do
     table_name = struct.__struct__.__table_name__
     sql = "SELECT * FROM #{table_name} WHERE #{where_string}"
 
-    case RatchetWrench.select_execute_sql(sql, params) do
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      param_types = param_types(struct.__struct__)
+
+      case RatchetWrench.execute_sql(sql, params, param_types) do
       {:ok, result_set} ->
         if result_set.rows == nil do
           {:ok, []}
@@ -97,9 +100,19 @@ defmodule RatchetWrench.Repo do
           {:ok, convert_result_set_to_value_list(struct, result_set)}
         end
       {:error, exception} -> {:error, exception}
+      end
+    else
+      case RatchetWrench.select_execute_sql(sql, params) do
+      {:ok, result_set} ->
+        if result_set.rows == nil do
+          {:ok, []}
+        else
+          {:ok, convert_result_set_to_value_list(struct, result_set)}
+        end
+      {:error, exception} -> {:error, exception}
+      end
     end
   end
-
 
   def insert(struct) do
     struct = struct
@@ -156,10 +169,7 @@ defmodule RatchetWrench.Repo do
   end
 
   def params_update_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    set_uuid_value(struct)
-    |> set_updated_at_value(now_timestamp)
+    struct
     |> Map.from_struct
     |> Enum.reduce(%{}, fn({key, value}, acc) ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
@@ -187,7 +197,7 @@ defmodule RatchetWrench.Repo do
 
   defp do_set(struct) when is_map(struct) do
     try do
-      struct = set_update_timestamp(struct)
+      struct = struct |> set_uuid_value |> set_update_timestamp
       sql = update_sql(struct)
       params = params_update_values_map(struct)
       param_types = param_types(struct.__struct__)
