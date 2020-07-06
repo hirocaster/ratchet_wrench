@@ -1,5 +1,6 @@
 defmodule RatchetWrenchTest do
   use ExUnit.Case
+  import ExUnit.CaptureLog
   doctest RatchetWrench
 
   setup_all do
@@ -38,7 +39,6 @@ defmodule RatchetWrenchTest do
                                            "DROP TABLE data"])
     end
   end
-
 
   test "update ddl, error syntax" do
     ddl_error = "Error Syntax DDL"
@@ -108,8 +108,11 @@ defmodule RatchetWrenchTest do
     insert_sql = "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)"
     insert_params = %{singer_id: "2", first_name: "Catalina", last_name: "Smith"}
     insert_param_types = RatchetWrench.Repo.param_types(Singer)
-    {:ok, result_set} = RatchetWrench.execute_sql(insert_sql, insert_params, insert_param_types)
-    assert result_set != nil
+
+    RatchetWrench.transaction(fn ->
+      {:ok, result_set} = RatchetWrench.execute_sql(insert_sql, insert_params, insert_param_types)
+      assert result_set != nil
+    end)
 
     {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     assert result_set != nil
@@ -123,10 +126,11 @@ defmodule RatchetWrenchTest do
     delete_params = %{singer_id: "2"}
     delete_param_types = RatchetWrench.Repo.param_types(Singer)
 
-    {:ok, result_set} = RatchetWrench.execute_sql(delete_sql, delete_params, delete_param_types)
-    assert result_set != nil
-    assert result_set.stats.rowCountExact == "1"
-
+    RatchetWrench.transaction(fn ->
+      {:ok, result_set} = RatchetWrench.execute_sql(delete_sql, delete_params, delete_param_types)
+      assert result_set != nil
+      assert result_set.stats.rowCountExact == "1"
+    end)
 
     {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     after_rows_count = Enum.count(result_set.rows)
@@ -134,83 +138,119 @@ defmodule RatchetWrenchTest do
     assert before_rows_count == after_rows_count
   end
 
-  test ".valid_transaction_execute_sql_map_list!" do
-    insert_sql_map = %{sql: "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)",
-                       params: %{singer_id: "2", first_name: "Catalina", last_name: "Smith"},
-                       param_types: RatchetWrench.Repo.param_types(Singer)}
-    assert :ok = RatchetWrench.valid_transaction_execute_sql_map_list!([insert_sql_map])
+  test ".transaction/1" do
+    RatchetWrench.transaction(fn ->
+      {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: "test transaction function",
+                                                        first_name: "trans func"})
+      assert singer == RatchetWrench.Repo.get(Singer, ["test transaction function"])
 
+      update_singer = Map.merge(singer, %{first_name: "trans2"})
+      Process.sleep(1000) # wait time diff
+      {:ok, updated_singer} = RatchetWrench.Repo.set(update_singer)
 
-    raise_sql_map = %{sql: "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)",
-                      params: %{singer_id: "2", first_name: "Catalina", last_name: "Smith"}}
-    assert_raise RuntimeError, fn ->
-      RatchetWrench.valid_transaction_execute_sql_map_list!([raise_sql_map])
-    end
+      assert updated_singer.first_name == "trans2"
+      assert singer.inserted_at == updated_singer.inserted_at
+      diff = DateTime.diff(updated_singer.updated_at, updated_singer.inserted_at)
+      assert diff >= 1
+
+      RatchetWrench.Repo.delete(Singer, ["test transaction function"])
+    end)
+
+    assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
   end
 
-  test "SQL SELECT/INSERT/UPDATE/DELETE in Transaction" do
-    select_sql_map = %{sql: "SELECT * FROM singers",
-                       params: %{},
-                       param_types: %{}}
+  test ".transaction!/1" do
+    RatchetWrench.transaction!(fn ->
+      {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: "test transaction function",
+                                                        first_name: "trans func"})
+      assert singer == RatchetWrench.Repo.get(Singer, ["test transaction function"])
 
-    insert_sql_map = %{sql: "INSERT INTO singers(singer_id, first_name, last_name) VALUES(@singer_id, @first_name, @last_name)",
-                       params: %{singer_id: "2", first_name: "Catalina", last_name: "Smith"},
-                       param_types: RatchetWrench.Repo.param_types(Singer)}
+      update_singer = Map.merge(singer, %{first_name: "trans2"})
+      Process.sleep(1000) # wait time diff
+      {:ok, updated_singer} = RatchetWrench.Repo.set(update_singer)
 
-    update_sql_map = %{sql: "UPDATE singers SET first_name = @first_name WHERE singer_id = @singer_id",
-                       params: %{first_name: "Cat", singer_id: "2"},
-                       param_types: RatchetWrench.Repo.param_types(Singer)}
+      assert updated_singer.first_name == "trans2"
+      assert singer.inserted_at == updated_singer.inserted_at
+      diff = DateTime.diff(updated_singer.updated_at, updated_singer.inserted_at)
+      assert diff >= 1
 
-    delete_sql_map = %{sql: "DELETE FROM singers WHERE singer_id = @singer_id",
-                       params: %{singer_id: "2"},
-                       param_types: RatchetWrench.Repo.param_types(Singer)}
+      {:ok, result_list} = RatchetWrench.Repo.where(%Singer{}, "first_name = @first_name", %{first_name: "trans2"})
+      assert List.first(result_list) == updated_singer
 
-    sql_map_list = [select_sql_map, insert_sql_map, select_sql_map, update_sql_map, select_sql_map, delete_sql_map, select_sql_map]
+      {:ok, result_list} = RatchetWrench.Repo.all(%Singer{})
+      assert Enum.count(result_list) == 3
+      assert List.last(result_list).singer_id == "test transaction function"
 
-    result_set_list = RatchetWrench.transaction_execute_sql(sql_map_list)
-    assert result_set_list != nil
+      {:ok, result_list} = RatchetWrench.Repo.all(%Singer{},
+        "singer_id = @singer_id",
+        %{singer_id: "test transaction function"})
+      assert Enum.count(result_list) == 1
+      assert List.last(result_list).singer_id == "test transaction function"
 
-    [select_result_set | tail_set_list] = result_set_list
-    assert select_result_set != nil
-    assert Enum.count(select_result_set.rows) == 2
+      RatchetWrench.Repo.delete(Singer, ["test transaction function"])
+    end)
 
-    [insert_result_set | tail_set_list] = tail_set_list
-    assert insert_result_set != nil
-    assert insert_result_set.stats.rowCountExact == "1"
+    assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
+  end
 
-    [select_result_set | tail_set_list] = tail_set_list
-    assert select_result_set != nil
-    assert Enum.count(select_result_set.rows) == 3
 
-    [update_result_set | tail_set_list] = tail_set_list
-    assert update_result_set != nil
-    assert update_result_set.stats.rowCountExact == "1"
+  test "Raise RuntimeError in .transaction/1" do
+    uuid = UUID.uuid4()
 
-    [select_result_set | tail_set_list] = tail_set_list
-    assert select_result_set != nil
-    assert Enum.count(select_result_set.rows) == 3
+    assert capture_log(fn ->
+      {:error, e} = RatchetWrench.transaction(fn ->
+        {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
+                                                        first_name: "trans func"})
+        assert singer == RatchetWrench.Repo.get(Singer, [uuid])
+        raise "raise test .transaction/1"
+      end)
+      assert nil == RatchetWrench.Repo.get(Singer, [uuid])
+      assert e.__struct__ == RuntimeError
+      assert e.message == "raise test .transaction/1"
+    end) =~ "raise test .transaction/1"
+  end
 
-    {update_raw, _} = List.pop_at(select_result_set.rows, 1)
-    [singer_id, first_name, last_name | _] = update_raw
-    assert singer_id == "2"
-    assert first_name == "Cat"
-    assert last_name == "Smith"
+  test "Raise TransactionError in .transaction!/1 " do
+    uuid = UUID.uuid4()
 
-    [delete_result_set | tail_set_list] = tail_set_list
-    assert delete_result_set.stats.rowCountExact == "1"
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.TransactionError, fn ->
+        RatchetWrench.transaction!(fn ->
+          {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
+                                                            first_name: "trans func"})
+          assert singer == RatchetWrench.Repo.get(Singer, [uuid])
+          raise RatchetWrench.Exception.TransactionError
+        end)
+      end
+    end) =~ "Raise exception in transaction."
 
-    [select_result_set | tail_set_list] = tail_set_list
-    assert select_result_set != nil
+    assert nil == RatchetWrench.Repo.get(Singer, [uuid])
+  end
 
-    [singer_id, first_name, last_name | _] = List.first(select_result_set.rows)
-    assert singer_id == "1"
-    assert first_name == "Marc"
-    assert last_name == "Richards"
-    [singer_id, first_name, last_name | _] = List.last(select_result_set.rows)
-    assert singer_id == "3"
-    assert first_name == "Kena"
-    assert last_name == nil
+  test "Use transaction in async" do
+    0..4
+    |> Enum.map(fn(_) ->
+      Task.async(fn ->
+        RatchetWrench.transaction(fn ->
+          id = UUID.uuid4()
+          {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: id,
+                                                             first_name: "trans func #{id}"})
+          assert singer == RatchetWrench.Repo.get(Singer, [id])
 
-    assert tail_set_list == []
+          update_singer = Map.merge(singer, %{first_name: "trans2 #{id}"})
+          Process.sleep(1000) # wait time diff
+          {:ok, updated_singer} = RatchetWrench.Repo.set(update_singer)
+
+          assert updated_singer.first_name == "trans2 #{id}"
+          assert singer.inserted_at == updated_singer.inserted_at
+          diff = DateTime.diff(updated_singer.updated_at, updated_singer.inserted_at)
+          assert diff >= 1
+
+          RatchetWrench.Repo.delete(Singer, [id])
+          assert RatchetWrench.Repo.get(Singer, [id]) == nil
+        end)
+      end)
+    end)
+    |> Enum.map(&Task.await &1, 10000)
   end
 end

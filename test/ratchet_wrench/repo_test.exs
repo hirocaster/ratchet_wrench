@@ -1,5 +1,6 @@
 defmodule RatchetWrench.RepoTest do
   use ExUnit.Case
+  import ExUnit.CaptureLog
 
   setup_all do
     start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
@@ -78,6 +79,20 @@ defmodule RatchetWrench.RepoTest do
     assert id_3_singer.first_name == "Kena"
   end
 
+  test ".get/2 bad args" do
+    assert_raise FunctionClauseError, fn ->
+      RatchetWrench.Repo.get(Singer, "3")
+    end
+  end
+
+  test ".get/2 bad pk list args `PkCountMissMatchInListError`" do
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.PkCountMissMatchInListError, fn ->
+        RatchetWrench.Repo.get!(Singer, ["3", "over_count_pk"])
+      end
+    end) =~ "Pk count mismatch in args List type."
+  end
+
   test "get not found id" do
     not_exist_id = ["999999999"]
     assert RatchetWrench.Repo.get(Singer, not_exist_id) == nil
@@ -144,8 +159,27 @@ defmodule RatchetWrench.RepoTest do
     assert singer_kena.first_name == "Kena"
   end
 
+  test ".set!/1" do
+    id_3_singer = RatchetWrench.Repo.get(Singer, ["3"])
+    update_id_3_singer = Map.merge(id_3_singer, %{invalid_column: "invalid_data"})
+
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+        RatchetWrench.Repo.set!(update_id_3_singer)
+      end
+    end) =~ "Unrecognized name: invalid_column"
+  end
+
+  test ".delete!/2" do
+    assert capture_log(fn ->
+      assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+        RatchetWrench.Repo.delete!(Singer, [3])
+      end
+    end) =~ "Invalid value for bind parameter singer_id:"
+  end
+
   test "get all records from Singer" do
-    singers = RatchetWrench.Repo.all(%Singer{})
+    {:ok, singers} = RatchetWrench.Repo.all(%Singer{})
     assert Enum.count(singers) == 2
     assert List.last(singers).__struct__ == Singer
     assert List.last(singers).first_name == "Kena"
@@ -153,14 +187,16 @@ defmodule RatchetWrench.RepoTest do
   end
 
   test "get all records from Data" do
-    all_data_list = RatchetWrench.Repo.all(%Data{})
-    assert Enum.count(all_data_list) == 100
+    assert capture_log(fn ->
+      {:ok, all_data_list} = RatchetWrench.Repo.all(%Data{})
+      assert Enum.count(all_data_list) == 100
+    end) =~ "Result set too large."
   end
 
   test "get all records and where from Singer" do
     where_sql = "singer_id = @singer_id"
     params = %{singer_id: "3"}
-    singer_list = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
+    {:ok, singer_list} = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
     assert List.first(singer_list).singer_id == "3"
     assert List.first(singer_list).first_name == "Kena"
   end
@@ -169,7 +205,7 @@ defmodule RatchetWrench.RepoTest do
     where_sql = "singer_id = @singer_id"
     params = %{singer_id: "not found id"}
 
-    singer_list = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
+    {:ok, singer_list} = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
     assert singer_list == []
   end
 
@@ -191,10 +227,15 @@ defmodule RatchetWrench.RepoTest do
   test "where DML syntax error" do
     where_sql = "first_name >< @first_name"
     params    = %{first_name: "syntax DML error"}
-    {:error, reason} = RatchetWrench.Repo.where(%Singer{}, where_sql, params)
-    assert reason["error"]["code"] == 400
-    assert reason["error"]["status"] == "INVALID_ARGUMENT"
-    assert reason["error"]["message"] =~ "Syntax error: Unexpected "
+
+    assert capture_log(fn ->
+      {:error, exception} = RatchetWrench.Repo.where(%Singer{}, where_sql, params)
+      assert exception.client.status == 400
+      reason = Poison.Parser.parse!(exception.client.body, %{})
+      assert reason["error"]["code"] == 400
+      assert reason["error"]["status"] == "INVALID_ARGUMENT"
+      assert reason["error"]["message"] =~ "Syntax error: Unexpected "
+    end) =~ "(RatchetWrench.Exception.APIRequestError) Request API error."
   end
 
   test "convert value to SQL value" do
@@ -250,21 +291,29 @@ defmodule RatchetWrench.RepoTest do
 
   test ".valid_pk_value_list!/2" do
     assert RatchetWrench.Repo.valid_pk_value_list!(UserItem, [1, 10]) == nil
-
-    assert_raise RuntimeError, fn ->
-      RatchetWrench.Repo.valid_pk_value_list!(UserItem, [1])
-    end
   end
 
-  test ".params_insert_values_map/1" do
-    singer = %Singer{first_name: "test_first_name"}
-    params = RatchetWrench.Repo.params_insert_values_map(singer)
-    assert params.first_name == "test_first_name"
-    assert params.last_name == nil
-    assert byte_size(params.singer_id ) == 36 # uuidv4
-    assert is_binary(params.inserted_at)
-    assert is_binary(params.updated_at)
-    assert params.inserted_at == params.updated_at
+  test ".convert_to_params/1" do
+    date = Faker.Date.date_of_birth()
+
+    {:ok, time_stamp, 0} = DateTime.from_iso8601("2015-01-23 23:50:07Z")
+
+    data = %Data{data_id: "convert_to_params/1",
+                 string: "string",
+                 bool: true,
+                 int: 999,
+                 float: 99.9,
+                 date: date,
+                 time_stamp: time_stamp}
+
+    params = RatchetWrench.Repo.convert_to_params(data)
+    assert params.data_id == "convert_to_params/1"
+    assert params.string == "string"
+    assert params.bool
+    assert params.int == "999"
+    assert params.float == 99.9
+    assert params.date == "#{date}"
+    assert params.time_stamp == "2015-01-23T23:50:07Z"
   end
 
   test ".paramTypes/1" do

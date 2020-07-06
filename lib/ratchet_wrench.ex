@@ -3,6 +3,8 @@ defmodule RatchetWrench do
   RatchetWrench is a easily use Google Cloud Spanner by Elixir.
   """
 
+  require Logger
+
   def execute() do
     token = RatchetWrench.token
     connection = RatchetWrench.connection(token)
@@ -116,129 +118,122 @@ defmodule RatchetWrench do
       {:ok, result_set} ->
         RatchetWrench.SessionPool.checkin(session)
         {:ok, result_set}
-      {:error, reason} ->
+      {:error, client} ->
         RatchetWrench.SessionPool.checkin(session)
-        {:error, Poison.Parser.parse!(reason.body, %{})}
+        request_api_error(client)
     end
   end
 
-  def execute_sql(sql, params, param_types, seqno \\ 1) when is_binary(sql) and is_map(params) and is_integer(seqno)  do
+  def request_api_error(api_client) do
+    try do
+      raise RatchetWrench.Exception.APIRequestError, api_client
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+    end
+  end
+
+  def execute_sql(sql, params, param_types) when is_binary(sql) and is_map(params) do
+    case do_execute_sql(sql, params, param_types) do
+      {:ok, result_set} -> {:ok, result_set}
+      {:error, client} -> request_api_error(client)
+    end
+  end
+
+  def do_execute_sql(sql, params, param_types) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.SessionPool.checkout()
-    {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
-    json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, paramTypes: param_types}
+    transaction = RatchetWrench.TransactionManager.begin()
+    session = transaction.session
 
-    case do_execute_sql(connection, session, transaction, json) do
-      {:ok, result_set} ->
-        RatchetWrench.commit_transaction(connection, session, transaction)
-        RatchetWrench.SessionPool.checkin(session)
-        {:ok, result_set}
-      {:error, reason} -> {:error, reason}
-    end
-  end
+    json = %{seqno: transaction.seqno,
+             transaction: %{id: transaction.transaction.id},
+             sql: sql,
+             params: params,
+             paramTypes: param_types}
 
-  def do_execute_sql(connection, session, transaction, json) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-      {:ok, result_set} ->
-        {:ok, result_set}
-      {:error, reason} -> error_googleapi(connection, session, transaction, reason)
+      {:ok, result_set} -> {:ok, result_set}
+      {:error, client} -> {:error, client}
     end
   end
 
-  def error_googleapi(connection, session, transaction, reason) do
-    # TODO: logging error
-    reason_json = Poison.Parser.parse!(reason.body, %{})
-
-    case rollback_transaction(connection, session, transaction) do
-      {:ok, _} ->
-        RatchetWrench.SessionPool.checkin(session)
-        {:error, reason_json}
-      {:error, reason} ->
-        RatchetWrench.SessionPool.checkin(session)
-        {:error, reason} # TODO: logging can not rollback
-    end
-  end
-
-  def auto_limit_offset_execute_sql(sql, params, limit \\ 1_000_000) do
-    {:ok, result_set_list} = do_auto_limit_offset_execute_sql(sql, params, limit)
+  def auto_limit_offset_execute_sql(sql, params, params_type, limit \\ 1_000_000) do
+    {:ok, result_set_list} = do_auto_limit_offset_execute_sql(sql, params, params_type, limit)
     {:ok, result_set_list}
   end
 
-  def do_auto_limit_offset_execute_sql(sql, params, limit, offset \\ 0, seqno \\ 1, acc \\ []) do
+  def do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset \\ 0, seqno \\ 1, acc \\ []) do
     limit_offset_sql = sql <> " LIMIT #{limit} OFFSET #{offset}"
-    case select_execute_sql(limit_offset_sql, params) do
-      {:ok, result_set} ->
-        if result_set.rows == nil do
-          {:ok, []}
-        else
-          result_set_list = acc ++ [result_set]
-          if limit == Enum.count(result_set.rows) do
-            offset = offset + limit
-            do_auto_limit_offset_execute_sql(sql, params, limit, offset, seqno + 1, result_set_list)
-          else
-            {:ok, result_set_list}
-          end
-        end
-      {:error, reason} ->
-        too_large_error_message = "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
-        if reason["error"]["message"] == too_large_error_message do
-          limit = div(limit, 2)
-          auto_limit_offset_execute_sql(sql, params, limit)
-        end
+
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      case execute_sql(limit_offset_sql, params, params_type) do
+        {:ok, result_set} ->
+          do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc)
+        {:error, exception} ->
+          do_result_set_to_large(exception, sql, params, params_type, limit)
+      end
+    else
+      case select_execute_sql(limit_offset_sql, params) do
+        {:ok, result_set} ->
+          do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc)
+        {:error, exception} ->
+          do_result_set_to_large(exception, sql, params, params_type, limit)
+      end
     end
   end
 
-  def transaction_execute_sql(sql_map_list) when is_list(sql_map_list) do
-    valid_transaction_execute_sql_map_list!(sql_map_list)
-
-    connection = RatchetWrench.token |> RatchetWrench.connection
-    session = RatchetWrench.SessionPool.checkout()
-    {:ok, transaction} = RatchetWrench.begin_transaction(connection, session)
-
-    result_set_list = Enum.map(Enum.with_index(sql_map_list), fn({map, seqno}) ->
-      seqno = seqno + 1
-      sql = map.sql
-      params = map.params
-      param_types = map.param_types
-
-      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, sql: #{sql}")
-      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, params: " <> inspect params)
-      RatchetWrench.Logger.info("Transaction transaction_id: #{transaction.id}, sqlno: #{seqno}, param_types: " <> inspect param_types)
-
-      RatchetWrench.Logger.info("Request transaction execute sql, seq: #{seqno}, transaction_id: #{transaction.id}")
-      json = %{seqno: seqno, transaction: %{id: transaction.id}, sql: sql, params: params, param_types: param_types}
-
-      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-        {:ok, result_set} ->
-          RatchetWrench.Logger.info("Transaction executed sql, seq: #{seqno}, transaction_id: #{transaction.id}")
-          result_set
-        {:error, reason} ->
-          RatchetWrench.Logger.info("Transaction executed sql error, execute rollabck, seq: #{seqno}, transaction_id: #{transaction.id}")
-          case rollback_transaction(connection, session, transaction) do
-            {:ok, _} ->
-              RatchetWrench.Logger.error(Poison.Parser.parse!(reason.body, %{}))
-              raise "Transaction executed sql error, rollbacked!"
-            {:error, _} -> raise "Transaction executed sql error, can't rollback error. Check your database!"
-          end
+  defp do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc) do
+    if result_set.rows == nil do
+      {:ok, []}
+    else
+      result_set_list = acc ++ [result_set]
+      if limit == Enum.count(result_set.rows) do
+        offset = offset + limit
+        do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
+      else
+        {:ok, result_set_list}
       end
-    end)
-    RatchetWrench.commit_transaction(connection, session, transaction)
-    RatchetWrench.SessionPool.checkin(session)
-
-    result_set_list
+    end
   end
 
-  def valid_transaction_execute_sql_map_list!(sql_map_list) do
-    Enum.each(sql_map_list, fn(map) ->
-      do_valid_transaction_execute_sql_map_list!(map, :sql)
-      do_valid_transaction_execute_sql_map_list!(map, :params)
-      do_valid_transaction_execute_sql_map_list!(map, :param_types)
-    end)
+  @too_large_error_message "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
+  defp do_result_set_to_large(exception, sql, params, params_type, limit) do
+    try do
+      reason = Poison.Parser.parse!(exception.client.body, %{})
+      if reason["error"]["message"] == @too_large_error_message do
+        limit = div(limit, 2)
+        auto_limit_offset_execute_sql(sql, params, params_type, limit)
+      else
+        raise exception
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+    end
   end
 
-  def do_valid_transaction_execute_sql_map_list!(map, key) do
-    unless Map.has_key?(map, key) do
-      raise "Not found sql #{key} in transaction execute sql map."
+  def transaction!(callback) when is_function(callback) do
+    case transaction(callback) do
+      {:ok, callback_result} -> callback_result
+      {:error, e} -> raise e
+    end
+  end
+
+  def transaction(callback) when is_function(callback) do
+    transaction = RatchetWrench.TransactionManager.begin()
+    try do
+      result = callback.()
+      RatchetWrench.TransactionManager.delete_key()
+      {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+      result
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:ok, _empty} = RatchetWrench.TransactionManager.rollback(transaction)
+        RatchetWrench.TransactionManager.delete_key()
+        {:error, err}
     end
   end
 end

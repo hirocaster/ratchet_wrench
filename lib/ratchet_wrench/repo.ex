@@ -1,12 +1,47 @@
 defmodule RatchetWrench.Repo do
-  def get(module, pk_value_list) do
-    valid_pk_value_list!(module, pk_value_list)
+  require Logger
 
-    sql = get_sql(module)
-    params = params_pk_map(module, pk_value_list)
+  def get!(module, pk_value_list) when is_list(pk_value_list) do
+    case do_get(module, pk_value_list) do
+      {:ok, result} -> result
+      {:error, exception} -> raise exception
+    end
+  end
 
-    {:ok, result_set} = RatchetWrench.select_execute_sql(sql, params)
+  def get(module, pk_value_list) when is_list(pk_value_list) do
+    case do_get(module, pk_value_list) do
+      {:ok, result} -> result
+      {:error, _exception} -> nil
+    end
+  end
 
+  def do_get(module, pk_value_list) when is_list(pk_value_list) do
+    try do
+      valid_pk_value_list!(module, pk_value_list)
+
+      sql = get_sql(module)
+      params = params_pk_map(module, pk_value_list)
+      param_types = param_types(module)
+
+      if RatchetWrench.TransactionManager.exist_transaction?() do
+        case RatchetWrench.execute_sql(sql, params, param_types) do
+          {:ok, result_set} -> {:ok, get_first_or_nil(module, result_set)}
+          {:error, exception} -> {:error, exception}
+        end
+      else
+        case RatchetWrench.select_execute_sql(sql, params) do
+          {:ok, result_set} -> {:ok, get_first_or_nil(module, result_set)}
+          {:error, exception} -> {:error, exception}
+        end
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+    end
+  end
+
+  defp get_first_or_nil(module, result_set) do
     if result_set.rows == nil do
       nil
     else
@@ -46,7 +81,7 @@ defmodule RatchetWrench.Repo do
     value_count = Enum.count(pk_value_list)
 
     unless pk_count == value_count do
-      raise "Not match count for pk in list_args"
+      raise RatchetWrench.Exception.PkCountMissMatchInListError
     end
   end
 
@@ -54,33 +89,58 @@ defmodule RatchetWrench.Repo do
     table_name = struct.__struct__.__table_name__
     sql = "SELECT * FROM #{table_name} WHERE #{where_string}"
 
-    case RatchetWrench.select_execute_sql(sql, params) do
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      param_types = param_types(struct.__struct__)
+
+      case RatchetWrench.execute_sql(sql, params, param_types) do
       {:ok, result_set} ->
         if result_set.rows == nil do
           {:ok, []}
         else
           {:ok, convert_result_set_to_value_list(struct, result_set)}
         end
-      {:error, reason} -> {:error, reason}
+      {:error, exception} -> {:error, exception}
+      end
+    else
+      case RatchetWrench.select_execute_sql(sql, params) do
+      {:ok, result_set} ->
+        if result_set.rows == nil do
+          {:ok, []}
+        else
+          {:ok, convert_result_set_to_value_list(struct, result_set)}
+        end
+      {:error, exception} -> {:error, exception}
+      end
     end
   end
 
-
   def insert(struct) do
-    struct = set_timestamps(struct)
+    struct = struct
+             |> set_uuid_value()
+             |> set_timestamps()
+
     sql = insert_sql(struct)
-    params = params_insert_values_map(struct)
+    params = convert_to_params(struct)
     param_types = param_types(struct.__struct__)
 
-    case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, _} -> {:ok, struct}
-      {:error, reason} -> {:error, reason}
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      case RatchetWrench.execute_sql(sql, params, param_types) do
+        {:ok, _} -> {:ok, struct}
+        {:error, exception} -> {:error, exception}
+      end
+    else
+      RatchetWrench.transaction(fn ->
+        case RatchetWrench.execute_sql(sql, params, param_types) do
+          {:ok, _} -> {:ok, struct}
+          {:error, exception} -> {:error, exception}
+        end
+      end)
     end
   end
 
   defp set_timestamps(struct) do
     now_timestamp = RatchetWrench.DateTime.now()
-    set_uuid_value(struct)
+    struct
     |> set_inserted_at_value(now_timestamp)
     |> set_updated_at_value(now_timestamp)
   end
@@ -100,12 +160,8 @@ defmodule RatchetWrench.Repo do
     "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
   end
 
-  def params_insert_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    set_uuid_value(struct)
-    |> set_inserted_at_value(now_timestamp)
-    |> set_updated_at_value(now_timestamp)
+  def convert_to_params(struct) do
+    struct
     |> Map.from_struct
     |> Enum.reduce(%{}, fn({key, value}, acc) ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
@@ -113,10 +169,7 @@ defmodule RatchetWrench.Repo do
   end
 
   def params_update_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
-    set_uuid_value(struct)
-    |> set_updated_at_value(now_timestamp)
+    struct
     |> Map.from_struct
     |> Enum.reduce(%{}, fn({key, value}, acc) ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
@@ -131,15 +184,41 @@ defmodule RatchetWrench.Repo do
        end)
   end
 
-  def set(struct) do
-    struct = set_update_timestamp(struct)
-    sql = update_sql(struct)
-    params = params_update_values_map(struct)
-    param_types = param_types(struct.__struct__)
+  def set!(struct) when is_map(struct) do
+    case do_set(struct) do
+      {:ok, struct} -> {:ok, struct}
+      {:error, exception} -> raise exception
+    end
+  end
 
-    case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, _} -> {:ok, struct}
-      {:error, reason} -> {:error, reason}
+  def set(struct) when is_map(struct)do
+    do_set(struct)
+  end
+
+  defp do_set(struct) when is_map(struct) do
+    try do
+      struct = struct |> set_uuid_value |> set_update_timestamp
+      sql = update_sql(struct)
+      params = params_update_values_map(struct)
+      param_types = param_types(struct.__struct__)
+
+      if RatchetWrench.TransactionManager.exist_transaction?() do
+        case RatchetWrench.execute_sql(sql, params, param_types) do
+          {:ok, _} -> {:ok, struct}
+          {:error, exception} -> {:error, exception}
+        end
+      else
+        RatchetWrench.transaction(fn ->
+          case RatchetWrench.execute_sql(sql, params, param_types) do
+            {:ok, _} -> {:ok, struct}
+            {:error, exception} -> {:error, exception}
+          end
+        end)
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
     end
   end
 
@@ -169,16 +248,45 @@ defmodule RatchetWrench.Repo do
     end)
   end
 
-  def delete(module, pk_value_list) do
-    valid_pk_value_list!(module, pk_value_list)
+  def delete!(module, pk_value_list) when is_list(pk_value_list) do
+    case do_delete(module, pk_value_list) do
+      {:ok, result} -> result
+      {:error, exception} -> raise exception
+    end
+  end
 
-    sql = delete_sql(module)
-    params = params_pk_map(module, pk_value_list)
-    param_types = param_types(module)
-
-    case RatchetWrench.execute_sql(sql, params, param_types) do
+  def delete(module, pk_value_list) when is_list(pk_value_list) do
+    case do_delete(module, pk_value_list) do
       {:ok, result_set} -> {:ok, result_set}
-      {:error, reason} -> {:error, reason}
+      {:error, exception} -> {:error, exception}
+    end
+  end
+
+  def do_delete(module, pk_value_list) when is_list(pk_value_list) do
+    try do
+      valid_pk_value_list!(module, pk_value_list)
+
+      sql = delete_sql(module)
+      params = params_pk_map(module, pk_value_list)
+      param_types = param_types(module)
+
+      if RatchetWrench.TransactionManager.exist_transaction?() do
+        case RatchetWrench.execute_sql(sql, params, param_types) do
+          {:ok, result_set} -> {:ok, result_set}
+          {:error, exception} -> {:error, exception}
+        end
+      else
+        RatchetWrench.transaction(fn ->
+          case RatchetWrench.execute_sql(sql, params, param_types) do
+            {:ok, result_set} -> {:ok, result_set}
+            {:error, exception} -> {:error, exception}
+          end
+        end)
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+      {:error, err}
     end
   end
 
@@ -188,20 +296,35 @@ defmodule RatchetWrench.Repo do
     base_sql <> where_pk_sql(module)
   end
 
-  def all(struct, where_sql, params) when is_binary(where_sql) do
-    table_name = struct.__struct__.__table_name__
-    sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
-    do_all(struct, sql, params)
+  def all(struct, where_sql, params) when is_map(struct) and is_binary(where_sql) and is_map(params) do
+    try do
+      table_name = to_table_name(struct)
+      sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
+      result_list = do_all(struct, sql, params)
+      {:ok, result_list}
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+      {:error, err}
+    end
   end
 
-  def all(struct) do
-    table_name = to_table_name(struct)
-    sql = "SELECT * FROM #{table_name}"
-    do_all(struct, sql, %{})
+  def all(struct) when is_map(struct) do
+    try do
+      table_name = to_table_name(struct)
+      sql = "SELECT * FROM #{table_name}"
+      result_list = do_all(struct, sql, %{})
+      {:ok, result_list}
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+    end
   end
 
   def do_all(struct, sql, params) do
-    {:ok, result_set_list} = RatchetWrench.auto_limit_offset_execute_sql(sql, params)
+    param_types = param_types(struct.__struct__)
+    {:ok, result_set_list} = RatchetWrench.auto_limit_offset_execute_sql(sql, params, param_types)
     Enum.reduce(result_set_list, [], fn(result_set, acc) ->
       acc ++ convert_result_set_to_value_list(struct, result_set)
     end)
