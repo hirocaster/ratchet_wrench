@@ -206,10 +206,18 @@ defmodule RatchetWrench do
 
   @too_large_error_message "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
   def do_result_set_to_large(exception, sql, params, params_type, limit) do
-    reason = Poison.Parser.parse!(exception.client.body, %{})
-    if reason["error"]["message"] == @too_large_error_message do
-      limit = div(limit, 2)
-      auto_limit_offset_execute_sql(sql, params, params_type, limit)
+    try do
+      reason = Poison.Parser.parse!(exception.client.body, %{})
+      if reason["error"]["message"] == @too_large_error_message do
+        limit = div(limit, 2)
+        auto_limit_offset_execute_sql(sql, params, params_type, limit)
+      else
+        raise exception
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
     end
   end
 
