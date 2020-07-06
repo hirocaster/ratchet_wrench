@@ -296,14 +296,14 @@ defmodule RatchetWrench.Repo do
     base_sql <> where_pk_sql(module)
   end
 
-  def all(struct, where_sql, params) when is_binary(where_sql) do
-    table_name = struct.__struct__.__table_name__
+  def all(struct, where_sql, params) when is_map(struct) and is_binary(where_sql) and is_map(params) do
+    table_name = to_table_name(struct)
     sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
-    result_list =  do_all(struct, sql, params)
+    result_list = do_all(struct, sql, params)
     {:ok, result_list}
   end
 
-  def all(struct) do
+  def all(struct) when is_map(struct) do
     table_name = to_table_name(struct)
     sql = "SELECT * FROM #{table_name}"
     result_list = do_all(struct, sql, %{})
