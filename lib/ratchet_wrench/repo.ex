@@ -299,17 +299,20 @@ defmodule RatchetWrench.Repo do
   def all(struct, where_sql, params) when is_binary(where_sql) do
     table_name = struct.__struct__.__table_name__
     sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
-    do_all(struct, sql, params)
+    result_list =  do_all(struct, sql, params)
+    {:ok, result_list}
   end
 
   def all(struct) do
     table_name = to_table_name(struct)
     sql = "SELECT * FROM #{table_name}"
-    do_all(struct, sql, %{})
+    result_list = do_all(struct, sql, %{})
+    {:ok, result_list}
   end
 
   def do_all(struct, sql, params) do
-    {:ok, result_set_list} = RatchetWrench.auto_limit_offset_execute_sql(sql, params)
+    param_types = param_types(struct.__struct__)
+    {:ok, result_set_list} = RatchetWrench.auto_limit_offset_execute_sql(sql, params, param_types)
     Enum.reduce(result_set_list, [], fn(result_set, acc) ->
       acc ++ convert_result_set_to_value_list(struct, result_set)
     end)

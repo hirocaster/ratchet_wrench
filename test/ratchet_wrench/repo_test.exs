@@ -179,7 +179,7 @@ defmodule RatchetWrench.RepoTest do
   end
 
   test "get all records from Singer" do
-    singers = RatchetWrench.Repo.all(%Singer{})
+    {:ok, singers} = RatchetWrench.Repo.all(%Singer{})
     assert Enum.count(singers) == 2
     assert List.last(singers).__struct__ == Singer
     assert List.last(singers).first_name == "Kena"
@@ -188,7 +188,7 @@ defmodule RatchetWrench.RepoTest do
 
   test "get all records from Data" do
     assert capture_log(fn ->
-      all_data_list = RatchetWrench.Repo.all(%Data{})
+      {:ok, all_data_list} = RatchetWrench.Repo.all(%Data{})
       assert Enum.count(all_data_list) == 100
     end) =~ "Result set too large."
   end
@@ -196,7 +196,7 @@ defmodule RatchetWrench.RepoTest do
   test "get all records and where from Singer" do
     where_sql = "singer_id = @singer_id"
     params = %{singer_id: "3"}
-    singer_list = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
+    {:ok, singer_list} = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
     assert List.first(singer_list).singer_id == "3"
     assert List.first(singer_list).first_name == "Kena"
   end
@@ -205,7 +205,7 @@ defmodule RatchetWrench.RepoTest do
     where_sql = "singer_id = @singer_id"
     params = %{singer_id: "not found id"}
 
-    singer_list = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
+    {:ok, singer_list} = RatchetWrench.Repo.all(%Singer{}, where_sql, params)
     assert singer_list == []
   end
 

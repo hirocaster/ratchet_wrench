@@ -177,6 +177,16 @@ defmodule RatchetWrenchTest do
       {:ok, result_list} = RatchetWrench.Repo.where(%Singer{}, "first_name = @first_name", %{first_name: "trans2"})
       assert List.first(result_list) == updated_singer
 
+      {:ok, result_list} = RatchetWrench.Repo.all(%Singer{})
+      assert Enum.count(result_list) == 3
+      assert List.last(result_list).singer_id == "test transaction function"
+
+      {:ok, result_list} = RatchetWrench.Repo.all(%Singer{},
+        "singer_id = @singer_id",
+        %{singer_id: "test transaction function"})
+      assert Enum.count(result_list) == 1
+      assert List.last(result_list).singer_id == "test transaction function"
+
       RatchetWrench.Repo.delete(Singer, ["test transaction function"])
     end)
 
