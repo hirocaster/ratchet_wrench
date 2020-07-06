@@ -166,46 +166,39 @@ defmodule RatchetWrench do
   def do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset \\ 0, seqno \\ 1, acc \\ []) do
     limit_offset_sql = sql <> " LIMIT #{limit} OFFSET #{offset}"
 
-    # TODO: Refactor
     if RatchetWrench.TransactionManager.exist_transaction?() do
       case execute_sql(limit_offset_sql, params, params_type) do
         {:ok, result_set} ->
-          if result_set.rows == nil do
-            {:ok, []}
-          else
-            result_set_list = acc ++ [result_set]
-            if limit == Enum.count(result_set.rows) do
-              offset = offset + limit
-              do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
-            else
-              {:ok, result_set_list}
-            end
-          end
+          do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc)
         {:error, exception} ->
           do_result_set_to_large(exception, sql, params, params_type, limit)
       end
     else
       case select_execute_sql(limit_offset_sql, params) do
         {:ok, result_set} ->
-          if result_set.rows == nil do
-            {:ok, []}
-          else
-            result_set_list = acc ++ [result_set]
-            if limit == Enum.count(result_set.rows) do
-              offset = offset + limit
-              do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
-            else
-              {:ok, result_set_list}
-            end
-          end
+          do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc)
         {:error, exception} ->
           do_result_set_to_large(exception, sql, params, params_type, limit)
       end
     end
   end
 
+  defp do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc) do
+    if result_set.rows == nil do
+      {:ok, []}
+    else
+      result_set_list = acc ++ [result_set]
+      if limit == Enum.count(result_set.rows) do
+        offset = offset + limit
+        do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
+      else
+        {:ok, result_set_list}
+      end
+    end
+  end
+
   @too_large_error_message "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
-  def do_result_set_to_large(exception, sql, params, params_type, limit) do
+  defp do_result_set_to_large(exception, sql, params, params_type, limit) do
     try do
       reason = Poison.Parser.parse!(exception.client.body, %{})
       if reason["error"]["message"] == @too_large_error_message do
