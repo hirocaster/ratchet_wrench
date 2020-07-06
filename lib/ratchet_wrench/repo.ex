@@ -297,17 +297,29 @@ defmodule RatchetWrench.Repo do
   end
 
   def all(struct, where_sql, params) when is_map(struct) and is_binary(where_sql) and is_map(params) do
-    table_name = to_table_name(struct)
-    sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
-    result_list = do_all(struct, sql, params)
-    {:ok, result_list}
+    try do
+      table_name = to_table_name(struct)
+      sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
+      result_list = do_all(struct, sql, params)
+      {:ok, result_list}
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+      {:error, err}
+    end
   end
 
   def all(struct) when is_map(struct) do
-    table_name = to_table_name(struct)
-    sql = "SELECT * FROM #{table_name}"
-    result_list = do_all(struct, sql, %{})
-    {:ok, result_list}
+    try do
+      table_name = to_table_name(struct)
+      sql = "SELECT * FROM #{table_name}"
+      result_list = do_all(struct, sql, %{})
+      {:ok, result_list}
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+    end
   end
 
   def do_all(struct, sql, params) do
