@@ -189,30 +189,30 @@ defmodule RatchetWrench do
             auto_limit_offset_execute_sql(sql, params, params_type, limit)
           end
       end
-  else
-    case select_execute_sql(limit_offset_sql, params) do
-      {:ok, result_set} ->
-        if result_set.rows == nil do
-          {:ok, []}
-        else
-          result_set_list = acc ++ [result_set]
-          if limit == Enum.count(result_set.rows) do
-            offset = offset + limit
-            do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
+    else
+      case select_execute_sql(limit_offset_sql, params) do
+        {:ok, result_set} ->
+          if result_set.rows == nil do
+            {:ok, []}
           else
-            {:ok, result_set_list}
+            result_set_list = acc ++ [result_set]
+            if limit == Enum.count(result_set.rows) do
+              offset = offset + limit
+              do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
+            else
+              {:ok, result_set_list}
+            end
           end
-        end
-      {:error, exception} ->
-        reason = Poison.Parser.parse!(exception.client.body, %{})
-        too_large_error_message = "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
-        if reason["error"]["message"] == too_large_error_message do
-          limit = div(limit, 2)
-          auto_limit_offset_execute_sql(sql, params, params_type, limit)
-        end
+        {:error, exception} ->
+          reason = Poison.Parser.parse!(exception.client.body, %{})
+          too_large_error_message = "Result set too large. Result sets larger than 10.00M can only be yielded through the streaming API."
+          if reason["error"]["message"] == too_large_error_message do
+            limit = div(limit, 2)
+            auto_limit_offset_execute_sql(sql, params, params_type, limit)
+          end
+      end
     end
-    end
-    end
+  end
 
   def transaction!(callback) when is_function(callback) do
     case transaction(callback) do
