@@ -350,12 +350,15 @@ defmodule RatchetWrench.Repo do
     {:ok, timestamp, _} = DateTime.from_iso8601(value)
     tz = System.get_env("TZ")
 
-    if tz == nil  do
-      timestamp
-    else
-      {:ok, datetime} = DateTime.shift_zone(timestamp, tz, Tzdata.TimeZoneDatabase)
-      datetime
-    end
+    datetime =
+      if tz == nil  do
+        timestamp
+      else
+        {:ok, datetime} = DateTime.shift_zone(timestamp, tz, Tzdata.TimeZoneDatabase)
+        datetime
+      end
+
+    %{datetime | microsecond: {datetime.microsecond |> elem(0), 6} }
   end
 
   defp to_struct(module) do

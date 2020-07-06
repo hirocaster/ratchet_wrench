@@ -157,6 +157,24 @@ defmodule RatchetWrench.RepoTest do
     assert Enum.count(all_data_list) == 100
   end
 
+  test "returns same timestamp" do
+    time_stamp = DateTime.shift_zone!(~U[2020-07-06 04:21:35.096500Z], System.get_env("TZ"), Tzdata.TimeZoneDatabase)
+
+    new_data = %Data{string: Faker.String.base64(1024),
+                     bool: List.first(Enum.take_random([true, false], 1)),
+                     int: List.first(Enum.take_random(0..9, 1)),
+                     float: 99.9,
+                     date: Faker.Date.date_of_birth(),
+                     time_stamp: time_stamp
+                    }
+
+    {:ok, data} = RatchetWrench.Repo.insert(new_data)
+
+    result = RatchetWrench.Repo.get(Data, [data.data_id])
+
+    assert result.time_stamp == data.time_stamp
+  end
+
   test "get all records and where from Singer" do
     where_sql = "singer_id = @singer_id"
     params = %{singer_id: "3"}
