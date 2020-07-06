@@ -114,6 +114,8 @@ defmodule RatchetWrench.RepoTest do
     assert result.singer_id == struct.singer_id
     assert result.inserted_at.time_zone == "Asia/Tokyo"
     assert result.updated_at.time_zone == "Asia/Tokyo"
+    assert result.inserted_at == struct.inserted_at
+    assert result.updated_at == struct.updated_at
 
     {:ok, result_set} = RatchetWrench.Repo.delete(Singer, [struct.singer_id])
 
@@ -258,13 +260,16 @@ defmodule RatchetWrench.RepoTest do
 
   test ".params_insert_values_map/1" do
     singer = %Singer{first_name: "test_first_name"}
-    params = RatchetWrench.Repo.params_insert_values_map(singer)
+    now_timestamp = RatchetWrench.DateTime.now()
+    params = RatchetWrench.Repo.params_insert_values_map(singer, now_timestamp)
     assert params.first_name == "test_first_name"
     assert params.last_name == nil
     assert byte_size(params.singer_id ) == 36 # uuidv4
     assert is_binary(params.inserted_at)
     assert is_binary(params.updated_at)
     assert params.inserted_at == params.updated_at
+    assert params.inserted_at == RatchetWrench.Repo.convert_value(now_timestamp)
+    assert params.updated_at == RatchetWrench.Repo.convert_value(now_timestamp)
   end
 
   test ".paramTypes/1" do

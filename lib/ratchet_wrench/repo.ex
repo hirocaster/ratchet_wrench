@@ -67,9 +67,11 @@ defmodule RatchetWrench.Repo do
 
 
   def insert(struct) do
-    struct = set_timestamps(struct)
+    now_timestamp = RatchetWrench.DateTime.now()
+
+    struct = set_timestamps(struct, now_timestamp)
     sql = insert_sql(struct)
-    params = params_insert_values_map(struct)
+    params = params_insert_values_map(struct, now_timestamp)
     param_types = param_types(struct.__struct__)
 
     case RatchetWrench.execute_sql(sql, params, param_types) do
@@ -78,8 +80,7 @@ defmodule RatchetWrench.Repo do
     end
   end
 
-  defp set_timestamps(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
+  defp set_timestamps(struct, now_timestamp) do
     set_uuid_value(struct)
     |> set_inserted_at_value(now_timestamp)
     |> set_updated_at_value(now_timestamp)
@@ -100,9 +101,7 @@ defmodule RatchetWrench.Repo do
     "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
   end
 
-  def params_insert_values_map(struct) do
-    now_timestamp = RatchetWrench.DateTime.now()
-
+  def params_insert_values_map(struct, now_timestamp) do
     set_uuid_value(struct)
     |> set_inserted_at_value(now_timestamp)
     |> set_updated_at_value(now_timestamp)
