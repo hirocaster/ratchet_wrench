@@ -234,14 +234,19 @@ defmodule RatchetWrench do
     transaction = RatchetWrench.TransactionManager.begin()
     try do
       result = callback.()
-      RatchetWrench.TransactionManager.delete_key()
-      {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+      if RatchetWrench.TransactionManager.exist_transaction? do
+        if transaction.skip == 0 do
+          {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+        end
+      end
       result
     rescue
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
-        {:ok, _empty} = RatchetWrench.TransactionManager.rollback(transaction)
-        RatchetWrench.TransactionManager.delete_key()
+        if RatchetWrench.TransactionManager.exist_transaction? do
+          {:ok, _empty} = RatchetWrench.TransactionManager.rollback(transaction)
+          RatchetWrench.TransactionManager.delete_key()
+        end
         {:error, err}
     end
   end

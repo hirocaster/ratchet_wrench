@@ -9,8 +9,22 @@ defmodule RatchetWrench.TransactionManager do
       transaction
     else
       seqno = transaction.seqno
-      transaction = Map.merge(transaction, %{seqno: seqno + 1})
+      transaction = transaction
+                    |> skip_countup_begin_transaction()
+                    |> Map.merge(%{seqno: seqno + 1})
       Process.put(key, transaction)
+      transaction
+    end
+  end
+
+  defp skip_countup_begin_transaction(transaction) do
+    Map.merge(transaction, %{skip: transaction.skip + 1})
+  end
+
+  defp skip_countdown_begin_transaction(transaction) do
+    if transaction.skip > 0 do
+      Map.merge(transaction, %{skip: transaction.skip - 1})
+    else
       transaction
     end
   end
@@ -33,9 +47,17 @@ defmodule RatchetWrench.TransactionManager do
     end
   end
 
+  defp get_transaction() do
+    key = self()
+    transaction = Process.get(key)
+  end
+
   def rollback(transaction) do
+    transaction = get_transaction()
+
     if exist_transaction?() do
       {:ok, empty} = _rollback_transaction(transaction)
+      delete_key()
       {:ok, empty}
     else
       {:error, "not found transaction"}
@@ -55,14 +77,17 @@ defmodule RatchetWrench.TransactionManager do
   end
 
   def commit(transaction) do
-    {:ok, commit_response} = _commit_transaction(transaction)
-
+    transaction = skip_countdown_begin_transaction(transaction)
     key = self()
-    if Process.get(key) == nil do
+
+    if transaction.skip == 0 do
+      {:ok, commit_response} = _commit_transaction(transaction)
+      delete_key()
       RatchetWrench.SessionPool.checkin(transaction.session)
       {:ok, commit_response}
     else
-      {:ok, nil}
+      Process.put(key, transaction)
+      {:ok, :skip}
     end
   end
 
