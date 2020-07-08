@@ -52,11 +52,9 @@ defmodule RatchetWrench.TransactionManager do
     Process.get(key)
   end
 
-  def rollback(transaction) do
-    transaction = get_transaction()
-
+  def rollback() do
     if exist_transaction?() do
-      {:ok, empty} = _rollback_transaction(transaction)
+      {:ok, empty} = rollback_transaction()
       delete_key()
       {:ok, empty}
     else
@@ -64,8 +62,9 @@ defmodule RatchetWrench.TransactionManager do
     end
   end
 
-  def _rollback_transaction(transaction) do
+  defp rollback_transaction() do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+    transaction = get_transaction()
     session = transaction.session
     RatchetWrench.rollback_transaction(connection, session, transaction.transaction)
   end
