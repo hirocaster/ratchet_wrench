@@ -82,7 +82,7 @@ defmodule RatchetWrench.TransactionManager do
                   |> skip_countdown_begin_transaction()
 
     if transaction.skip == 0 do
-      {:ok, commit_response} = _commit_transaction(transaction)
+      {:ok, commit_response} = commit_transaction(transaction)
       delete_transaction()
       RatchetWrench.SessionPool.checkin(transaction.session)
       {:ok, commit_response}
@@ -92,7 +92,7 @@ defmodule RatchetWrench.TransactionManager do
     end
   end
 
-  def _commit_transaction(transaction) do
+  defp commit_transaction(transaction) do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = transaction.session
     RatchetWrench.commit_transaction(connection, session, transaction.transaction)
