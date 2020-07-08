@@ -4,7 +4,7 @@ defmodule RatchetWrench.TransactionManager do
     transaction = Process.get(key)
 
     if transaction == nil do
-      transaction = _begin_transaction()
+      transaction = begin_transaction()
       put_transaction(transaction)
       transaction
     else
@@ -29,7 +29,7 @@ defmodule RatchetWrench.TransactionManager do
     end
   end
 
-  def _begin_transaction() do
+  defp begin_transaction() do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = RatchetWrench.SessionPool.checkout()
 
