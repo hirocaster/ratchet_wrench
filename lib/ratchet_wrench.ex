@@ -245,7 +245,6 @@ defmodule RatchetWrench do
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
         if RatchetWrench.TransactionManager.exist_transaction? do
           {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
-          RatchetWrench.TransactionManager.delete_key()
         end
         {:error, err}
     end

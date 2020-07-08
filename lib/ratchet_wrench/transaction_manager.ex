@@ -68,7 +68,7 @@ defmodule RatchetWrench.TransactionManager do
   end
 
 
-  def delete_key() do
+  defp delete_key() do
     key = self()
     Process.delete(key)
   end
