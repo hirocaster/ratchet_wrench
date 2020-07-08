@@ -135,9 +135,18 @@ defmodule RatchetWrench do
   end
 
   def execute_sql(sql, params, param_types) when is_binary(sql) and is_map(params) do
-    case do_execute_sql(sql, params, param_types) do
-      {:ok, result_set} -> {:ok, result_set}
-      {:error, client} -> request_api_error(client)
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      case do_execute_sql(sql, params, param_types) do
+        {:ok, result_set} -> {:ok, result_set}
+        {:error, client} -> request_api_error(client)
+      end
+    else
+      transaction fn ->
+        case do_execute_sql(sql, params, param_types) do
+          {:ok, result_set} -> {:ok, result_set}
+          {:error, client} -> request_api_error(client)
+        end
+      end
     end
   end
 

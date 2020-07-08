@@ -253,4 +253,9 @@ defmodule RatchetWrenchTest do
     end)
     |> Enum.map(&Task.await &1, 10000)
   end
+
+  test "Transaction commit, only call .execute_sql" do
+    RatchetWrench.execute_sql("SELECT * FROM singers", %{}, %{})
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+  end
 end
