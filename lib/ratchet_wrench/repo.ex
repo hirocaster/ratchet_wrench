@@ -474,10 +474,10 @@ defmodule RatchetWrench.Repo do
     tz = System.get_env("TZ")
 
     if tz == nil  do
-      timestamp
+      timestamp |> RatchetWrench.DateTime.add_suffix_zero()
     else
       {:ok, datetime} = DateTime.shift_zone(timestamp, tz, Tzdata.TimeZoneDatabase)
-      datetime
+      datetime |> RatchetWrench.DateTime.add_suffix_zero()
     end
   end
 

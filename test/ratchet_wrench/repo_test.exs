@@ -247,6 +247,16 @@ defmodule RatchetWrench.RepoTest do
     assert RatchetWrench.Repo.convert_value("string") == "string"
   end
 
+  test "convert value type for TIMESTAMP" do
+    {:ok, from_cloudspanner_dt, 0} = DateTime.from_iso8601("2020-06-30 05:11:40.02812Z")
+    {:ok, elixir_dt, 0}            = DateTime.from_iso8601("2020-06-30 05:11:40.028120Z")
+
+    converted_date_time = RatchetWrench.Repo.convert_value_type("#{from_cloudspanner_dt}", "TIMESTAMP")
+
+    {:ok, converted_date_time} = DateTime.shift_zone(converted_date_time, "Etc/UTC", Tzdata.TimeZoneDatabase)
+    assert converted_date_time == elixir_dt
+  end
+
   test ".set_uuid_value/1" do
     singer = RatchetWrench.Repo.set_uuid_value(%Singer{})
     assert singer.singer_id != nil
