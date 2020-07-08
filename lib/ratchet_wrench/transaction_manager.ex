@@ -49,7 +49,7 @@ defmodule RatchetWrench.TransactionManager do
 
   defp get_transaction() do
     key = self()
-    transaction = Process.get(key)
+    Process.get(key)
   end
 
   def rollback(transaction) do
@@ -76,8 +76,9 @@ defmodule RatchetWrench.TransactionManager do
     Process.delete(key)
   end
 
-  def commit(transaction) do
-    transaction = skip_countdown_begin_transaction(transaction)
+  def commit() do
+    transaction = get_transaction()
+                  |> skip_countdown_begin_transaction()
     key = self()
 
     if transaction.skip == 0 do

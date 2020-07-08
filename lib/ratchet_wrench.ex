@@ -236,7 +236,7 @@ defmodule RatchetWrench do
       result = callback.()
       if RatchetWrench.TransactionManager.exist_transaction? do
         if transaction.skip == 0 do
-          {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+          {:ok, _commit_response} = RatchetWrench.TransactionManager.commit()
         end
       end
       result
