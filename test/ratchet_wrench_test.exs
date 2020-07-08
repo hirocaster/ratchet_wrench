@@ -285,7 +285,7 @@ defmodule RatchetWrenchTest do
                                                            first_name: "trans func #{singer_id}"})
       end
 
-      assert RatchetWrench.TransactionManager.rollback(nil)
+      assert RatchetWrench.TransactionManager.rollback()
 
       assert RatchetWrench.TransactionManager.exist_transaction? == false
     end

@@ -30,11 +30,9 @@ defmodule RatchetWrench.TransactionManagerTest do
   end
 
   test "Commit transaction" do
-    transaction = RatchetWrench.TransactionManager.begin()
+    RatchetWrench.TransactionManager.begin()
 
-    RatchetWrench.TransactionManager.delete_key()
-
-    {:ok, commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+    {:ok, commit_response} = RatchetWrench.TransactionManager.commit()
     assert commit_response.__struct__ == GoogleApi.Spanner.V1.Model.CommitResponse
 
     keys = RatchetWrench.TransactionManager.get_keys()
@@ -53,8 +51,7 @@ defmodule RatchetWrench.TransactionManagerTest do
     keys = RatchetWrench.TransactionManager.get_keys()
     assert self() in keys
 
-    RatchetWrench.TransactionManager.delete_key()
-    {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction_2nd)
+    {:ok, _commit_response} = RatchetWrench.TransactionManager.commit()
 
     keys = RatchetWrench.TransactionManager.get_keys()
     assert self() in keys == false

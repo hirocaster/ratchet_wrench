@@ -4,15 +4,15 @@ defmodule RatchetWrench.TransactionManager do
     transaction = Process.get(key)
 
     if transaction == nil do
-      transaction = _begin_transaction()
-      Process.put(key, transaction)
+      transaction = begin_transaction()
+      put_transaction(transaction)
       transaction
     else
       seqno = transaction.seqno
       transaction = transaction
                     |> skip_countup_begin_transaction()
                     |> Map.merge(%{seqno: seqno + 1})
-      Process.put(key, transaction)
+      put_transaction(transaction)
       transaction
     end
   end
@@ -29,7 +29,7 @@ defmodule RatchetWrench.TransactionManager do
     end
   end
 
-  def _begin_transaction() do
+  defp begin_transaction() do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = RatchetWrench.SessionPool.checkout()
 
@@ -38,9 +38,7 @@ defmodule RatchetWrench.TransactionManager do
   end
 
   def exist_transaction?() do
-    key = self()
-    transaction = Process.get(key)
-    if transaction == nil do
+    if get_transaction() == nil do
       false
     else
       true
@@ -49,49 +47,52 @@ defmodule RatchetWrench.TransactionManager do
 
   defp get_transaction() do
     key = self()
-    transaction = Process.get(key)
+    Process.get(key)
   end
 
-  def rollback(transaction) do
-    transaction = get_transaction()
+  defp put_transaction(transaction) do
+    key = self()
+    Process.put(key, transaction)
+  end
 
+  defp delete_transaction() do
+    key = self()
+    Process.delete(key)
+  end
+
+  def rollback() do
     if exist_transaction?() do
-      {:ok, empty} = _rollback_transaction(transaction)
-      delete_key()
+      {:ok, empty} = rollback_transaction()
+      delete_transaction()
       {:ok, empty}
     else
       {:error, "not found transaction"}
     end
   end
 
-  def _rollback_transaction(transaction) do
+  defp rollback_transaction() do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+    transaction = get_transaction()
     session = transaction.session
     RatchetWrench.rollback_transaction(connection, session, transaction.transaction)
   end
 
-
-  def delete_key() do
-    key = self()
-    Process.delete(key)
-  end
-
-  def commit(transaction) do
-    transaction = skip_countdown_begin_transaction(transaction)
-    key = self()
+  def commit() do
+    transaction = get_transaction()
+                  |> skip_countdown_begin_transaction()
 
     if transaction.skip == 0 do
-      {:ok, commit_response} = _commit_transaction(transaction)
-      delete_key()
+      {:ok, commit_response} = commit_transaction(transaction)
+      delete_transaction()
       RatchetWrench.SessionPool.checkin(transaction.session)
       {:ok, commit_response}
     else
-      Process.put(key, transaction)
+      put_transaction(transaction)
       {:ok, :skip}
     end
   end
 
-  def _commit_transaction(transaction) do
+  defp commit_transaction(transaction) do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = transaction.session
     RatchetWrench.commit_transaction(connection, session, transaction.transaction)

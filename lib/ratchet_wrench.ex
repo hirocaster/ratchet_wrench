@@ -236,7 +236,7 @@ defmodule RatchetWrench do
       result = callback.()
       if RatchetWrench.TransactionManager.exist_transaction? do
         if transaction.skip == 0 do
-          {:ok, _commit_response} = RatchetWrench.TransactionManager.commit(transaction)
+          {:ok, _commit_response} = RatchetWrench.TransactionManager.commit()
         end
       end
       result
@@ -244,8 +244,7 @@ defmodule RatchetWrench do
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
         if RatchetWrench.TransactionManager.exist_transaction? do
-          {:ok, _empty} = RatchetWrench.TransactionManager.rollback(transaction)
-          RatchetWrench.TransactionManager.delete_key()
+          {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
         end
         {:error, err}
     end
