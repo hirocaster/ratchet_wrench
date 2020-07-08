@@ -258,4 +258,40 @@ defmodule RatchetWrenchTest do
     RatchetWrench.execute_sql("SELECT * FROM singers", %{}, %{})
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
+
+  test "Nest transactions" do
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+    RatchetWrench.transaction fn ->
+      assert RatchetWrench.TransactionManager.exist_transaction?
+      RatchetWrench.transaction fn ->
+        assert RatchetWrench.TransactionManager.exist_transaction?
+      end
+      assert RatchetWrench.TransactionManager.exist_transaction?
+    end
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+  end
+
+  test "Rollback in nest transactions" do
+    singer_id = UUID.uuid4()
+
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+
+    RatchetWrench.transaction fn ->
+      assert RatchetWrench.TransactionManager.exist_transaction?
+
+      RatchetWrench.transaction fn ->
+        assert RatchetWrench.TransactionManager.exist_transaction? == true
+        {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
+                                                           first_name: "trans func #{singer_id}"})
+      end
+
+      assert RatchetWrench.TransactionManager.rollback(nil)
+
+      assert RatchetWrench.TransactionManager.exist_transaction? == false
+    end
+
+    assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
+
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+  end
 end
