@@ -38,9 +38,7 @@ defmodule RatchetWrench.TransactionManager do
   end
 
   def exist_transaction?() do
-    key = self()
-    transaction = Process.get(key)
-    if transaction == nil do
+    if get_transaction() == nil do
       false
     else
       true
