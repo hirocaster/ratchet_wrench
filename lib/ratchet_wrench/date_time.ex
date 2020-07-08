@@ -22,6 +22,8 @@ defmodule RatchetWrench.DateTime do
 
   def add_suffix_zero(datetime) do
     {microsecond, _} = datetime.microsecond
-    Map.merge(datetime, %{microsecond: {microsecond, 6}})
+    %DateTime{year: datetime.year, month: datetime.month, day: datetime.day, zone_abbr: datetime.zone_abbr,
+               hour: datetime.hour, minute: datetime.minute, second: datetime.second, microsecond: {microsecond, 6},
+               utc_offset: datetime.utc_offset, std_offset: datetime.std_offset, time_zone: datetime.time_zone}
   end
 end
