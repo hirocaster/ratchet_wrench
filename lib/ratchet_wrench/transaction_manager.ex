@@ -53,7 +53,7 @@ defmodule RatchetWrench.TransactionManager do
   def rollback() do
     if exist_transaction?() do
       {:ok, empty} = rollback_transaction()
-      delete_key()
+      delete_transaction()
       {:ok, empty}
     else
       {:error, "not found transaction"}
@@ -68,7 +68,7 @@ defmodule RatchetWrench.TransactionManager do
   end
 
 
-  defp delete_key() do
+  defp delete_transaction() do
     key = self()
     Process.delete(key)
   end
@@ -80,7 +80,7 @@ defmodule RatchetWrench.TransactionManager do
 
     if transaction.skip == 0 do
       {:ok, commit_response} = _commit_transaction(transaction)
-      delete_key()
+      delete_transaction()
       RatchetWrench.SessionPool.checkin(transaction.session)
       {:ok, commit_response}
     else
