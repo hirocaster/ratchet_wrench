@@ -98,6 +98,33 @@ defmodule RatchetWrench.RepoTest do
     assert RatchetWrench.Repo.get(Singer, not_exist_id) == nil
   end
 
+  test ".exists?/2" do
+    assert RatchetWrench.Repo.exists?(Singer, %{singer_id: "3"})
+    assert RatchetWrench.Repo.exists?(Singer, %{singer_id: "not exists"}) == false
+
+    assert capture_log(fn ->
+      {:error, exception} = RatchetWrench.Repo.exists?(Singer, %{unknown: "unkown"})
+      assert exception.__struct__ == RatchetWrench.Exception.APIRequestError
+    end) =~ "RatchetWrench.Exception.APIRequestError"
+  end
+
+  test "sql_and_for_where/1" do
+    map = %{singer_id: "3"}
+    sql = RatchetWrench.Repo.sql_and_for_where(map)
+    assert sql == " singer_id = @singer_id"
+
+    map = %{singer_id: "3", first_name: "Kena"}
+    sql = RatchetWrench.Repo.sql_and_for_where(map)
+    assert sql == " first_name = @first_name AND singer_id = @singer_id"
+  end
+
+  test "convert_to_params/1" do
+    id = UUID.uuid4()
+    map = %{data_id: id, integer: 99}
+    params = RatchetWrench.Repo.convert_to_params(map)
+    assert params == %{data_id: id, integer: "99"}
+  end
+
   test "insert/get/delete new record at auto uuid value" do
     new_singer = %Singer{first_name: "example_first_name_auto_uuid"}
     now_timestamp = DateTime.utc_now
