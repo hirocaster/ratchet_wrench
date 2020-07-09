@@ -85,6 +85,47 @@ defmodule RatchetWrench.Repo do
     end
   end
 
+  def exists?(module, map) when is_map(map) do
+    table_name = module.__table_name__
+    sql = "SELECT 1 AS one FROM #{table_name} WHERE" <> sql_and_for_where(map) <> " LIMIT 1"
+    params = convert_to_params(map)
+
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      param_types = param_types(module)
+
+      case RatchetWrench.execute_sql(sql, params, param_types) do
+        {:ok, result_set} ->
+          case result_set.rows do
+            [["1"]] -> true
+            nil -> false
+            _ -> raise "Unknown result from Repo.exists?"
+          end
+        {:error, exception} -> {:error, exception}
+      end
+    else
+      case RatchetWrench.select_execute_sql(sql, params) do
+        {:ok, result_set} ->
+          case result_set.rows do
+            [["1"]] -> true
+            nil -> false
+            _ -> raise "Unknown result from Repo.exists?"
+          end
+        {:error, exception} -> {:error, exception}
+      end
+    end
+  end
+
+  def sql_and_for_where(map) when is_map(map) do
+    column_list = Map.keys(map)
+    Enum.reduce(column_list, "", fn(key, acc) ->
+      if acc == "" do
+        acc <> " #{key} = @#{key}"
+      else
+        acc <> " AND #{key} = @#{key}"
+      end
+    end)
+  end
+
   def where(struct, where_string, params) do
     table_name = struct.__struct__.__table_name__
     sql = "SELECT * FROM #{table_name} WHERE #{where_string}"
@@ -160,12 +201,20 @@ defmodule RatchetWrench.Repo do
     "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
   end
 
-  def convert_to_params(struct) do
+  def convert_to_params(struct) when is_struct(struct) do
     struct
-    |> Map.from_struct
-    |> Enum.reduce(%{}, fn({key, value}, acc) ->
+    |> Map.from_struct()
+    |> do_convert_to_params()
+  end
+
+  def convert_to_params(map) when is_map(map) do
+    do_convert_to_params(map)
+  end
+
+  defp do_convert_to_params(map) when is_map(map) do
+    Enum.reduce(map, %{}, fn({key, value}, acc) ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
-      end)
+    end)
   end
 
   def params_update_values_map(struct) do
