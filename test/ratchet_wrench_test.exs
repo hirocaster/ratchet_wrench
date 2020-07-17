@@ -139,7 +139,10 @@ defmodule RatchetWrenchTest do
   end
 
   test ".transaction/1" do
+    refute RatchetWrench.TransactionManager.exist_transaction?
     RatchetWrench.transaction(fn ->
+      assert RatchetWrench.TransactionManager.exist_transaction?()
+
       {:ok, singer } = RatchetWrench.Repo.insert(%Singer{singer_id: "test transaction function",
                                                         first_name: "trans func"})
       assert singer == RatchetWrench.Repo.get(Singer, ["test transaction function"])
@@ -156,8 +159,9 @@ defmodule RatchetWrenchTest do
       assert RatchetWrench.Repo.exists?(Singer, %{singer_id: "test transaction function"})
 
       RatchetWrench.Repo.delete(Singer, ["test transaction function"])
+      assert RatchetWrench.TransactionManager.exist_transaction?()
     end)
-
+    refute RatchetWrench.TransactionManager.exist_transaction?
     assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
   end
 
