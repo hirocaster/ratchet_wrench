@@ -161,6 +161,9 @@ defmodule RatchetWrench do
              params: params,
              paramTypes: param_types}
 
+    IO.inspect json
+
+
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
       {:ok, result_set} -> {:ok, result_set}
       {:error, client} -> {:error, client}
@@ -231,15 +234,27 @@ defmodule RatchetWrench do
   end
 
   def transaction(callback) when is_function(callback) do
-    transaction = RatchetWrench.TransactionManager.begin()
     try do
-      result = callback.()
       if RatchetWrench.TransactionManager.exist_transaction? do
+        transaction = RatchetWrench.TransactionManager.begin()
+                      |> RatchetWrench.TransactionManager.skip_countup_begin_transaction
+        result = callback.()
+
+        if transaction.skip == 0 do
+          {:ok, _commit_response} = RatchetWrench.TransactionManager.commit()
+        else
+          RatchetWrench.TransactionManager.skip_countdown_begin_transaction(transaction)
+        end
+        result
+      else
+        transaction = RatchetWrench.TransactionManager.begin()
+        result = callback.()
+
         if transaction.skip == 0 do
           {:ok, _commit_response} = RatchetWrench.TransactionManager.commit()
         end
+        result
       end
-      result
     rescue
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))

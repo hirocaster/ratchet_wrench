@@ -10,20 +10,23 @@ defmodule RatchetWrench.TransactionManager do
     else
       seqno = transaction.seqno
       transaction = transaction
-                    |> skip_countup_begin_transaction()
                     |> Map.merge(%{seqno: seqno + 1})
       put_transaction(transaction)
       transaction
     end
   end
 
-  defp skip_countup_begin_transaction(transaction) do
-    Map.merge(transaction, %{skip: transaction.skip + 1})
+  def skip_countup_begin_transaction(transaction) do
+    transaction = Map.merge(transaction, %{skip: transaction.skip + 1})
+    put_transaction(transaction)
+    transaction
   end
 
-  defp skip_countdown_begin_transaction(transaction) do
+  def skip_countdown_begin_transaction(transaction) do
     if transaction.skip > 0 do
-      Map.merge(transaction, %{skip: transaction.skip - 1})
+      transaction = Map.merge(transaction, %{skip: transaction.skip - 1})
+      put_transaction(transaction)
+      transaction
     else
       transaction
     end
@@ -79,7 +82,6 @@ defmodule RatchetWrench.TransactionManager do
 
   def commit() do
     transaction = get_transaction()
-                  |> skip_countdown_begin_transaction()
 
     if transaction.skip == 0 do
       {:ok, commit_response} = commit_transaction(transaction)
