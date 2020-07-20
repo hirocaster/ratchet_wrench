@@ -275,19 +275,13 @@ defmodule RatchetWrenchTest do
       assert RatchetWrench.TransactionManager.exist_transaction?
 
       RatchetWrench.Repo.insert(%Singer{singer_id: outside_singer_id,
-                                        first_name: "trans func #{outside_singer_id}"})
-
-      IO.puts "/// outside transaction ///"
-      IO.inspect RatchetWrench.TransactionManager.begin()
+                                        first_name: "trans outside func #{outside_singer_id}"})
 
       RatchetWrench.transaction fn ->
         assert RatchetWrench.TransactionManager.exist_transaction?
 
         RatchetWrench.Repo.insert(%Singer{singer_id: inside_singer_id,
-                                          first_name: "trans func #{inside_singer_id}"})
-
-        IO.puts "/// inside transaction ///"
-        IO.inspect RatchetWrench.TransactionManager.begin()
+                                          first_name: "trans inside func #{inside_singer_id}"})
       end
 
       RatchetWrench.Repo.delete(Singer, [inside_singer_id])
@@ -312,7 +306,9 @@ defmodule RatchetWrenchTest do
                                                            first_name: "trans func #{singer_id}"})
       end
 
-      assert RatchetWrench.TransactionManager.rollback()
+      assert RatchetWrench.TransactionManager.exist_transaction? == true
+
+      {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
 
       assert RatchetWrench.TransactionManager.exist_transaction? == false
     end

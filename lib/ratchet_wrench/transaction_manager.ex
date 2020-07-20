@@ -1,19 +1,22 @@
 defmodule RatchetWrench.TransactionManager do
   def begin() do
-    key = self()
-    transaction = Process.get(key)
+    transaction = get_transaction()
 
     if transaction == nil do
       transaction = begin_transaction()
       put_transaction(transaction)
       transaction
     else
+      transaction
+    end
+  end
+
+  def countup_seqno(transaction) do
       seqno = transaction.seqno
       transaction = transaction
                     |> Map.merge(%{seqno: seqno + 1})
       put_transaction(transaction)
       transaction
-    end
   end
 
   def skip_countup_begin_transaction(transaction) do
