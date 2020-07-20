@@ -15,16 +15,6 @@ defmodule RatchetWrench.TransactionManagerTest do
     assert transaction.seqno == 1
     assert transaction.transaction.__struct__ == GoogleApi.Spanner.V1.Model.Transaction
 
-    transaction2 = RatchetWrench.TransactionManager.begin()
-    assert transaction2.seqno == 2
-    transaction3 = RatchetWrench.TransactionManager.begin()
-    assert transaction3.seqno == 3
-    transaction4 = RatchetWrench.TransactionManager.begin()
-    assert transaction4.seqno == 4
-    transaction5 = RatchetWrench.TransactionManager.begin()
-    assert transaction5.seqno == 5
-
-
     keys = RatchetWrench.TransactionManager.get_keys()
     assert self() in keys
   end
@@ -39,11 +29,10 @@ defmodule RatchetWrench.TransactionManagerTest do
     assert (self() in keys) == false
   end
 
-  test "Increment seqno in exist transaction manager" do
+  test "Return equal transaction at begin()" do
     transaction_1st = RatchetWrench.TransactionManager.begin()
     transaction_2nd = RatchetWrench.TransactionManager.begin()
 
-    assert transaction_2nd.seqno == 2
     assert transaction_1st.transaction == transaction_2nd.transaction
     assert transaction_1st.transaction.id == transaction_2nd.transaction.id
     assert transaction_1st.session == transaction_2nd.session
