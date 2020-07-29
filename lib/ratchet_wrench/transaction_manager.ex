@@ -62,14 +62,24 @@ defmodule RatchetWrench.TransactionManager do
   end
 
   defp delete_transaction() do
+    checkin_for_session_pool()
     key = self()
     Process.delete(key)
+  end
+
+  defp checkin_for_session_pool() do
+    transaction = get_transaction()
+    RatchetWrench.SessionPool.checkin(transaction.session)
   end
 
   def rollback() do
     if exist_transaction?() do
       {:ok, empty} = rollback_transaction()
-      delete_transaction()
+
+      get_transaction()
+      |> Map.merge(%{rollback: true})
+      |> put_transaction()
+
       {:ok, empty}
     else
       {:error, "not found transaction"}
@@ -86,14 +96,21 @@ defmodule RatchetWrench.TransactionManager do
   def commit() do
     transaction = get_transaction()
 
-    if transaction.skip == 0 do
-      {:ok, commit_response} = commit_transaction(transaction)
+    if transaction.rollback do
       delete_transaction()
-      RatchetWrench.SessionPool.checkin(transaction.session)
-      {:ok, commit_response}
+      {:error, :rollback}
     else
-      put_transaction(transaction)
-      {:ok, :skip}
+      if transaction.skip == 0 do
+        case commit_transaction(transaction) do
+          {:ok, commit_response} ->
+            delete_transaction()
+            {:ok, commit_response}
+          {:error, err} -> {:error, err}
+        end
+      else
+        put_transaction(transaction)
+        {:ok, :skip}
+      end
     end
   end
 

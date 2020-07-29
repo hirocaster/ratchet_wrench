@@ -155,6 +155,13 @@ defmodule RatchetWrench.Repo do
     end
   end
 
+  def insert!(struct) do
+    case insert(struct) do
+      {:ok, struct} -> {:ok, struct}
+      {:error, exception} -> raise exception
+    end
+  end
+
   def insert(struct) do
     struct = struct
              |> set_uuid_value()
@@ -167,7 +174,7 @@ defmodule RatchetWrench.Repo do
     if RatchetWrench.TransactionManager.exist_transaction?() do
       case RatchetWrench.execute_sql(sql, params, param_types) do
         {:ok, _} -> {:ok, struct}
-        {:error, exception} -> {:error, exception}
+        {:error, exception} -> raise exception
       end
     else
       RatchetWrench.transaction(fn ->
@@ -254,7 +261,7 @@ defmodule RatchetWrench.Repo do
       if RatchetWrench.TransactionManager.exist_transaction?() do
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, _} -> {:ok, struct}
-          {:error, exception} -> {:error, exception}
+          {:error, exception} -> raise exception
         end
       else
         RatchetWrench.transaction(fn ->
@@ -322,7 +329,7 @@ defmodule RatchetWrench.Repo do
       if RatchetWrench.TransactionManager.exist_transaction?() do
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, result_set} -> {:ok, result_set}
-          {:error, exception} -> {:error, exception}
+          {:error, exception} -> raise exception
         end
       else
         RatchetWrench.transaction(fn ->
