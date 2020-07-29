@@ -199,40 +199,6 @@ defmodule RatchetWrenchTest do
     assert nil == RatchetWrench.Repo.get(Singer, ["test transaction function"])
   end
 
-
-  test "Raise RuntimeError in .transaction/1" do
-    uuid = UUID.uuid4()
-
-    assert capture_log(fn ->
-      {:error, e} = RatchetWrench.transaction(fn ->
-        {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
-                                                        first_name: "trans func"})
-        assert singer == RatchetWrench.Repo.get(Singer, [uuid])
-        raise "raise test .transaction/1"
-      end)
-      assert nil == RatchetWrench.Repo.get(Singer, [uuid])
-      assert e.__struct__ == RuntimeError
-      assert e.message == "raise test .transaction/1"
-    end) =~ "raise test .transaction/1"
-  end
-
-  test "Raise TransactionError in .transaction!/1 " do
-    uuid = UUID.uuid4()
-
-    assert capture_log(fn ->
-      assert_raise RatchetWrench.Exception.TransactionError, fn ->
-        RatchetWrench.transaction!(fn ->
-          {:ok, singer} = RatchetWrench.Repo.insert(%Singer{singer_id: uuid,
-                                                            first_name: "trans func"})
-          assert singer == RatchetWrench.Repo.get(Singer, [uuid])
-          raise RatchetWrench.Exception.TransactionError
-        end)
-      end
-    end) =~ "Raise exception in transaction."
-
-    assert nil == RatchetWrench.Repo.get(Singer, [uuid])
-  end
-
   test "Use transaction in async" do
     0..4
     |> Enum.map(fn(_) ->
@@ -310,7 +276,7 @@ defmodule RatchetWrenchTest do
 
       {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
 
-      assert RatchetWrench.TransactionManager.exist_transaction? == false
+      assert RatchetWrench.TransactionManager.exist_transaction? == true
     end
 
     assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
@@ -318,37 +284,81 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
 
-  #   test "example duplicate insert" do
-  #   singer_id = UUID.uuid4()
+  test "Duplicate insert for sample data" do
+    assert capture_log(fn ->
+      RatchetWrench.transaction fn ->
+        RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
+      end
+    end) =~ "singers already exists"
+  end
 
-  #   refute RatchetWrench.TransactionManager.exist_transaction?()
+  test "Duplicate insert! for sample data" do
+    assert capture_log(fn ->
+      RatchetWrench.transaction fn ->
+        RatchetWrench.Repo.insert!(%Singer{singer_id: "3", first_name: "Kena"})
+      end
+    end) =~ "singers already exists"
+  end
 
-  # {:error, err} = RatchetWrench.transaction fn ->
-  #     assert RatchetWrench.TransactionManager.exist_transaction?()
+  test "Rollback .insert/1" do
+    assert capture_log(fn ->
+      RatchetWrench.transaction fn ->
+        RatchetWrench.Repo.insert(%Singer{singer_id: "test", first_name: "test"})
+        assert RatchetWrench.Repo.get(Singer, ["test"])
 
-  #     IO.puts "1st singer"
-  #     RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
-  #                                       first_name: "trans func #{singer_id}"})
+        # duplicate insert
+        RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
+      end
+    end) =~ "singers already exists"
 
-  #     RatchetWrench.transaction fn ->
-  #       assert RatchetWrench.TransactionManager.exist_transaction?()
+    assert RatchetWrench.Repo.get(Singer, ["test"]) == nil
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
+  end
 
-  #       IO.puts "2nd singer"
-  #       {:error, _exception} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
-  #                                                               first_name: "trans func #{singer_id}"})
-
-  #       # refute RatchetWrench.TransactionManager.exist_transaction?()
-  #     end
-
-  #       # refute RatchetWrench.TransactionManager.exist_transaction?()
+  # test "Rollback .set/1" do
+  #   RatchetWrench.transaction fn ->
+  #     # TODO: raise .set/1 and rollback
+  #     RatchetWrench.Repo.set(%Singer{singer_id: "3", first_name: "TEST"})
   #   end
-  #   # end) =~ "(RuntimeError) rollback"
-
-  #   assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
-
-  #   IO.inspect err
-
-  #   refute RatchetWrench.TransactionManager.exist_transaction?()
+  #   # TODO: rollback check
+  #   singer = RatchetWrench.Repo.get(Singer, ["3"])
+  #   assert singer.first_name == "Kena"
   # end
 
+  # TODO: this test
+  # test "Rollback, delete/1" do
+  # end
+
+  test "Rollback, duplicate insert and nest transactions" do
+    singer_id = UUID.uuid4()
+
+    refute RatchetWrench.TransactionManager.exist_transaction?()
+
+    assert capture_log(fn ->
+      {:error, err} = RatchetWrench.transaction fn ->
+        assert RatchetWrench.TransactionManager.exist_transaction?()
+
+        RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
+                                          first_name: "trans func #{singer_id}"})
+
+        RatchetWrench.transaction fn ->
+          assert RatchetWrench.TransactionManager.exist_transaction?()
+
+          RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
+                                            first_name: "trans func #{singer_id}"})
+
+          assert RatchetWrench.TransactionManager.exist_transaction?()
+        end
+
+        assert RatchetWrench.TransactionManager.exist_transaction?()
+      end
+      assert err == :rollback
+      assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
+
+    end) =~ "singers already exists"
+
+    assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
+    refute RatchetWrench.TransactionManager.exist_transaction?()
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
+  end
 end
