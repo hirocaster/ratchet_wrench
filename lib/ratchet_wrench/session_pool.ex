@@ -66,6 +66,11 @@ defmodule RatchetWrench.SessionPool do
     GenServer.cast(__MODULE__, {:checkin, session})
   end
 
+  def delete_over_idle_sessions do
+    GenServer.call(__MODULE__, :delete_over_idle_sessions, :infinity)
+  end
+
+
   def is_safe_session?(session) do
     session_use_time = DateTime.diff(DateTime.utc_now, session.approximateLastUseTime)
     if session_use_time < @session_update_boarder do
@@ -157,11 +162,32 @@ defmodule RatchetWrench.SessionPool do
   end
 
   @impl GenServer
+  def handle_call(:delete_over_idle_sessions, _from, pool) do
+    pool = do_delete_over_idle_sessions(pool)
+    {:reply, pool, pool}
+  end
+
+  @impl GenServer
   def handle_call(:terminate_child, _from, pool) do
     session_all_clear(pool)
     {:stop, :shutdown, pool}
   end
 
+  defp do_delete_over_idle_sessions(pool) do
+    idle_sessions = pool.idle
+    delete_session = List.last(idle_sessions)
+    pool = Map.merge(pool, %{idle: List.delete_at(idle_sessions, -1)})
+
+    if Enum.count(pool.idle) > RatchetWrench.SessionPool.session_min() do
+      connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+      {:ok, _} = RatchetWrench.delete_session(connection, delete_session)
+      do_delete_over_idle_sessions(pool)
+    else
+      connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+      {:ok, _} = RatchetWrench.delete_session(connection, delete_session)
+      pool
+    end
+  end
 
   def checkout_safe_session(pool) do
     if Enum.empty?(pool.idle) do
@@ -198,20 +224,25 @@ defmodule RatchetWrench.SessionPool do
   @impl GenServer
   def handle_cast({:checkin, session}, pool) do
     if is_safe_session?(session) do
+      pool = remove_session_in_checkout_pool(pool, session)
       pool = Map.merge(pool, %{idle: pool.idle ++ [session]})
       {:noreply, pool}
     else
-      checkout_sessions = Enum.reduce(pool.checkout, [], fn(checkout_session, acc) ->
-                            if session.name == checkout_session.name do
-                              acc
-                            else
-                              acc ++ [checkout_session]
-                            end
-                          end)
-      pool = Map.merge(pool, %{checkout: checkout_sessions})
+      pool = remove_session_in_checkout_pool(pool, session)
       pool = Map.merge(pool, %{idle: pool.idle ++ [new_session()]})
       {:noreply, pool}
     end
+  end
+
+  defp remove_session_in_checkout_pool(pool, session) do
+    checkout_sessions = Enum.reduce(pool.checkout, [], fn(checkout_session, acc) ->
+                          if session.name == checkout_session.name do
+                            acc
+                          else
+                            acc ++ [checkout_session]
+                          end
+                        end)
+    Map.merge(pool, %{checkout: checkout_sessions})
   end
 
   @impl GenServer

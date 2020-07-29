@@ -85,6 +85,33 @@ defmodule RatchetWrench.SessionPoolTest do
     RatchetWrench.SessionPool.checkin(session4)
 
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 14
+
+    RatchetWrench.SessionPool.delete_over_idle_sessions()
+
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+  end
+
+  test "Status at checkout/checkin" do
+    session_a = RatchetWrench.SessionPool.checkout()
+
+    pool = RatchetWrench.SessionPool.pool
+    assert Enum.count(pool.idle) == 2
+    assert Enum.count(pool.checkout) == 1
+
+    session_b = RatchetWrench.SessionPool.checkout()
+    pool = RatchetWrench.SessionPool.pool
+    assert Enum.count(pool.idle) == 1
+    assert Enum.count(pool.checkout) == 2
+
+    RatchetWrench.SessionPool.checkin(session_a)
+    pool = RatchetWrench.SessionPool.pool
+    assert Enum.count(pool.idle) == 2
+    assert Enum.count(pool.checkout) == 1
+
+    RatchetWrench.SessionPool.checkin(session_b)
+    pool = RatchetWrench.SessionPool.pool
+    assert Enum.count(pool.idle) == 3
+    assert Enum.count(pool.checkout) == 0
   end
 
   # test "loop replace sessions in pool" do
