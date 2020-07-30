@@ -331,6 +331,7 @@ defmodule RatchetWrenchTest do
 
   test "Rollback, duplicate insert and nest transactions" do
     singer_id = UUID.uuid4()
+    singer_id_b = UUID.uuid4()
 
     refute RatchetWrench.TransactionManager.exist_transaction?()
 
@@ -350,14 +351,19 @@ defmodule RatchetWrenchTest do
           assert RatchetWrench.TransactionManager.exist_transaction?()
         end
 
+        {:error, :rollback} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id_b,
+                                                                first_name: "trans func #{singer_id_b}"})
+
         assert RatchetWrench.TransactionManager.exist_transaction?()
-      end
+    end
+
       assert err == :rollback
       assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
 
     end) =~ "singers already exists"
 
     assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
+    assert RatchetWrench.Repo.get(Singer, [singer_id_b]) == nil
     refute RatchetWrench.TransactionManager.exist_transaction?()
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
   end

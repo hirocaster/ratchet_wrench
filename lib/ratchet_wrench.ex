@@ -138,12 +138,14 @@ defmodule RatchetWrench do
     if RatchetWrench.TransactionManager.exist_transaction?() do
       case do_execute_sql(sql, params, param_types) do
         {:ok, result_set} -> {:ok, result_set}
+        {:error, :rollback} -> {:error, :rollback}
         {:error, client} -> request_api_error(client)
       end
     else
       transaction fn ->
         case do_execute_sql(sql, params, param_types) do
           {:ok, result_set} -> {:ok, result_set}
+          {:error, :rollback} -> {:error, :rollback}
           {:error, client} -> request_api_error(client)
         end
       end
@@ -153,19 +155,24 @@ defmodule RatchetWrench do
   def do_execute_sql(sql, params, param_types) do
     connection = RatchetWrench.token |> RatchetWrench.connection
     transaction = RatchetWrench.TransactionManager.begin()
-    session = transaction.session
 
-    json = %{seqno: transaction.seqno,
-             transaction: %{id: transaction.transaction.id},
-             sql: sql,
-             params: params,
-             paramTypes: param_types}
+    if transaction.rollback() do
+      {:error, :rollback}
+    else
+      session = transaction.session
 
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-      {:ok, result_set} ->
-        RatchetWrench.TransactionManager.countup_seqno(transaction)
-        {:ok, result_set}
-      {:error, client} -> {:error, client}
+      json = %{seqno: transaction.seqno,
+               transaction: %{id: transaction.transaction.id},
+               sql: sql,
+               params: params,
+               paramTypes: param_types}
+
+      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
+        {:ok, result_set} ->
+          RatchetWrench.TransactionManager.countup_seqno(transaction)
+          {:ok, result_set}
+        {:error, client} -> {:error, client}
+      end
     end
   end
 
