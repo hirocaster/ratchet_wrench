@@ -4,6 +4,7 @@ defmodule RatchetWrench.Repo do
   def get!(module, pk_value_list) when is_list(pk_value_list) do
     case do_get(module, pk_value_list) do
       {:ok, result} -> result
+      {:error, :rollback} -> raise "Rollbacked this transaction."
       {:error, exception} -> raise exception
     end
   end
@@ -11,6 +12,7 @@ defmodule RatchetWrench.Repo do
   def get(module, pk_value_list) when is_list(pk_value_list) do
     case do_get(module, pk_value_list) do
       {:ok, result} -> result
+      {:error, :rollback} -> nil
       {:error, _exception} -> nil
     end
   end
@@ -26,6 +28,7 @@ defmodule RatchetWrench.Repo do
       if RatchetWrench.TransactionManager.exist_transaction?() do
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, result_set} -> {:ok, get_first_or_nil(module, result_set)}
+          {:error, :rollback} -> {:error, :rollback}
           {:error, exception} -> {:error, exception}
         end
       else
@@ -100,6 +103,7 @@ defmodule RatchetWrench.Repo do
             nil -> false
             _ -> raise "Unknown result from Repo.exists?"
           end
+        {:error, :rollback} -> {:error, :rollback}
         {:error, exception} -> {:error, exception}
       end
     else
@@ -140,6 +144,7 @@ defmodule RatchetWrench.Repo do
         else
           {:ok, convert_result_set_to_value_list(struct, result_set)}
         end
+      {:error, :rollback} -> {:error, :rollback}
       {:error, exception} -> {:error, exception}
       end
     else
@@ -158,6 +163,7 @@ defmodule RatchetWrench.Repo do
   def insert!(struct) do
     case insert(struct) do
       {:ok, struct} -> {:ok, struct}
+      {:error, :rollback} -> {:error, :rollback}
       {:error, exception} -> raise exception
     end
   end
@@ -174,12 +180,14 @@ defmodule RatchetWrench.Repo do
     if RatchetWrench.TransactionManager.exist_transaction?() do
       case RatchetWrench.execute_sql(sql, params, param_types) do
         {:ok, _} -> {:ok, struct}
+        {:error, :rollback} -> {:error, :rollback}
         {:error, exception} -> raise exception
       end
     else
       RatchetWrench.transaction(fn ->
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, _} -> {:ok, struct}
+          {:error, :rollback} -> {:error, :rollback}
           {:error, exception} -> {:error, exception}
         end
       end)
@@ -243,6 +251,7 @@ defmodule RatchetWrench.Repo do
   def set!(struct) when is_map(struct) do
     case do_set(struct) do
       {:ok, struct} -> {:ok, struct}
+      {:error, :rollback} -> {:error, :rollback}
       {:error, exception} -> raise exception
     end
   end
@@ -261,12 +270,14 @@ defmodule RatchetWrench.Repo do
       if RatchetWrench.TransactionManager.exist_transaction?() do
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, _} -> {:ok, struct}
+          {:error, :rollback} -> {:error, :rollback}
           {:error, exception} -> raise exception
         end
       else
         RatchetWrench.transaction(fn ->
           case RatchetWrench.execute_sql(sql, params, param_types) do
             {:ok, _} -> {:ok, struct}
+            {:error, :rollback} -> {:error, :rollback}
             {:error, exception} -> {:error, exception}
           end
         end)
@@ -329,12 +340,14 @@ defmodule RatchetWrench.Repo do
       if RatchetWrench.TransactionManager.exist_transaction?() do
         case RatchetWrench.execute_sql(sql, params, param_types) do
           {:ok, result_set} -> {:ok, result_set}
+          {:error, :rollback} -> {:error, :rollback}
           {:error, exception} -> raise exception
         end
       else
         RatchetWrench.transaction(fn ->
           case RatchetWrench.execute_sql(sql, params, param_types) do
             {:ok, result_set} -> {:ok, result_set}
+            {:error, :rollback} -> {:error, :rollback}
             {:error, exception} -> {:error, exception}
           end
         end)
