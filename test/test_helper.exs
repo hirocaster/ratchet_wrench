@@ -62,7 +62,7 @@ defmodule UserItem do
 
   schema do
     uuid :user_item_id
-    pk [:user_id, :user_item_id]
+    pk [:user_item_id]
     attributes user_item_id: {"STRING", nil},
       user_id: {"STRING", nil},
       name: {"STRING", nil}

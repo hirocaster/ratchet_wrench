@@ -23,12 +23,25 @@ defmodule RatchetWrench.RepoTest do
                  updated_at TIMESTAMP,
                  ) PRIMARY KEY(singer_id)"
 
-    ddl_list = [ddl_singer, ddl_data]
+    ddl_user = "CREATE TABLE users (
+                 user_id STRING(36) NOT NULL,
+                 name STRING(MAX),
+                 ) PRIMARY KEY(user_id)"
+
+    ddl_user_item = "CREATE TABLE user_items (
+                     user_id STRING(36) NOT NULL,
+                     user_item_id STRING(36) NOT NULL,
+                     name STRING(MAX),
+                     ) PRIMARY KEY(user_item_id),
+                     INTERLEAVE IN PARENT users ON DELETE CASCADE"
+
+    ddl_list = [ddl_singer, ddl_data, ddl_user, ddl_user_item]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
     Process.sleep(10_000) # Wait DML
 
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
+    TestHelper.check_ready_table(%User{})
 
     RatchetWrench.Repo.insert(%Singer{singer_id: "1", first_name: "Marc", last_name: "Richards"})
     RatchetWrench.Repo.insert(%Singer{singer_id: "3", first_name: "Kena"})
@@ -62,7 +75,9 @@ defmodule RatchetWrench.RepoTest do
 
     on_exit fn ->
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
-                                           "DROP TABLE data"])
+                                           "DROP TABLE data",
+                                           "DROP TABLE users_items",
+                                           "DROP TABLE users"])
       if now_tz == nil do
         System.delete_env("TZ")
       else
@@ -426,6 +441,18 @@ defmodule RatchetWrench.RepoTest do
       assert is_float(test_data.float)
       assert test_data.date.__struct__ == Date
       assert test_data.time_stamp.__struct__ == DateTime
+    end
+
+    test "Update record in INTERLEAVE child table" do
+      parent_user = %User{name: "test-user"}
+      {:ok, parent_user} = RatchetWrench.Repo.insert(parent_user)
+      child_item = %UserItem{name: "test-item", user_id: parent_user.user_id}
+      {:ok, child_item} = RatchetWrench.Repo.insert(child_item)
+
+      update_child_item = Map.merge(child_item, %{name: "test-update-item"})
+      {:ok, updated_child_item} = RatchetWrench.Repo.set(update_child_item)
+
+      assert update_child_item.name == updated_child_item.name
     end
   end
 end
