@@ -263,21 +263,24 @@ defmodule RatchetWrenchTest do
 
     assert RatchetWrench.TransactionManager.exist_transaction? == false
 
-    RatchetWrench.transaction fn ->
-      assert RatchetWrench.TransactionManager.exist_transaction?
-
+    {:error, error} =
       RatchetWrench.transaction fn ->
+        assert RatchetWrench.TransactionManager.exist_transaction?
+
+        RatchetWrench.transaction fn ->
+          assert RatchetWrench.TransactionManager.exist_transaction? == true
+          {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
+                                                             first_name: "trans func #{singer_id}"})
+        end
+
         assert RatchetWrench.TransactionManager.exist_transaction? == true
-        {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
-                                                           first_name: "trans func #{singer_id}"})
+
+        raise "rollback"
+
+        assert RatchetWrench.TransactionManager.exist_transaction? == true
       end
 
-      assert RatchetWrench.TransactionManager.exist_transaction? == true
-
-      {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
-
-      assert RatchetWrench.TransactionManager.exist_transaction? == true
-    end
+    assert %RuntimeError{message: "rollback"} = error
 
     assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
 
@@ -336,7 +339,7 @@ defmodule RatchetWrenchTest do
     refute RatchetWrench.TransactionManager.exist_transaction?()
 
     assert capture_log(fn ->
-      {:error, err} = RatchetWrench.transaction fn ->
+      {:error, _} = RatchetWrench.transaction fn ->
         assert RatchetWrench.TransactionManager.exist_transaction?()
 
         RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
@@ -355,9 +358,8 @@ defmodule RatchetWrenchTest do
                                                                 first_name: "trans func #{singer_id_b}"})
 
         assert RatchetWrench.TransactionManager.exist_transaction?()
-    end
+      end
 
-      assert err == :rollback
       assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
 
     end) =~ "singers already exists"
