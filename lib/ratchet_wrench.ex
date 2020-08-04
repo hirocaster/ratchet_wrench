@@ -138,14 +138,12 @@ defmodule RatchetWrench do
     if RatchetWrench.TransactionManager.exist_transaction?() do
       case do_execute_sql(sql, params, param_types) do
         {:ok, result_set} -> {:ok, result_set}
-        {:error, :rollback} -> {:error, :rollback}
         {:error, client} -> request_api_error(client)
       end
     else
       transaction fn ->
         case do_execute_sql(sql, params, param_types) do
           {:ok, result_set} -> {:ok, result_set}
-          {:error, :rollback} -> {:error, :rollback}
           {:error, client} -> request_api_error(client)
         end
       end
@@ -154,25 +152,21 @@ defmodule RatchetWrench do
 
   def do_execute_sql(sql, params, param_types) do
     connection = RatchetWrench.token |> RatchetWrench.connection
-    transaction = RatchetWrench.TransactionManager.begin()
+    transaction = RatchetWrench.TransactionManager.get_or_begin_transaction()
 
-    if transaction.rollback() do
-      {:error, :rollback}
-    else
-      session = transaction.session
+    session = transaction.session
 
-      json = %{seqno: transaction.seqno,
-               transaction: %{id: transaction.transaction.id},
-               sql: sql,
-               params: params,
-               paramTypes: param_types}
+    json = %{seqno: transaction.seqno,
+             transaction: %{id: transaction.transaction.id},
+             sql: sql,
+             params: params,
+             paramTypes: param_types}
 
-      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-        {:ok, result_set} ->
-          RatchetWrench.TransactionManager.countup_seqno(transaction)
-          {:ok, result_set}
-        {:error, client} -> {:error, client}
-      end
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
+      {:ok, result_set} ->
+        RatchetWrench.TransactionManager.countup_seqno(transaction)
+        {:ok, result_set}
+      {:error, client} -> {:error, client}
     end
   end
 
@@ -240,40 +234,25 @@ defmodule RatchetWrench do
   end
 
   def transaction(callback) when is_function(callback) do
-    try do
-      if RatchetWrench.TransactionManager.exist_transaction? do
-
+    if RatchetWrench.TransactionManager.exist_transaction? do
+      callback.()
+    else
+      try do
         RatchetWrench.TransactionManager.begin()
-        |> RatchetWrench.TransactionManager.skip_countup_begin_transaction()
-
         result = callback.()
 
-        RatchetWrench.TransactionManager.begin()
-        |> RatchetWrench.TransactionManager.skip_countdown_begin_transaction()
-
-        result
-      else
-        transaction = RatchetWrench.TransactionManager.begin()
-
-        result = transaction(callback)
-
-        if RatchetWrench.TransactionManager.exist_transaction?() do
-          if transaction.skip == 0 do
-            case RatchetWrench.TransactionManager.commit() do
-              {:ok, _commit_response} -> result
-              {:error, :rollback} -> {:error, :rollback}
-              {:error, err} -> {:error, err}
-            end
+        case RatchetWrench.TransactionManager.commit() do
+          {:ok, _commit_response} -> result
+          {:error, err} -> {:error, err}
+        end
+      rescue
+        err in _ ->
+          Logger.error(Exception.format(:error, err, __STACKTRACE__))
+          if RatchetWrench.TransactionManager.exist_transaction? do
+            RatchetWrench.TransactionManager.rollback()
           end
-        end
+          {:error, err}
       end
-    rescue
-      err in _ ->
-        Logger.error(Exception.format(:error, err, __STACKTRACE__))
-        if RatchetWrench.TransactionManager.exist_transaction? do
-          {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
-        end
-        {:error, err}
     end
   end
 end

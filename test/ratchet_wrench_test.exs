@@ -258,28 +258,63 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
 
-  test "Rollback in nest transactions" do
-    singer_id = UUID.uuid4()
+  test "Rollback in nest transactions(outer)" do
+    singer_id1 = UUID.uuid4()
+    singer_id2 = UUID.uuid4()
 
     assert RatchetWrench.TransactionManager.exist_transaction? == false
 
-    RatchetWrench.transaction fn ->
-      assert RatchetWrench.TransactionManager.exist_transaction?
-
+    {:error, error} =
       RatchetWrench.transaction fn ->
+        assert RatchetWrench.TransactionManager.exist_transaction?
+
+        RatchetWrench.transaction fn ->
+          assert RatchetWrench.TransactionManager.exist_transaction? == true
+          {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id1,
+                                                             first_name: "trans func #{singer_id1}"})
+        end
+
         assert RatchetWrench.TransactionManager.exist_transaction? == true
-        {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
-                                                           first_name: "trans func #{singer_id}"})
+
+        raise "error from transaction"
+
+        {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id2,
+                                                             first_name: "trans func #{singer_id2}"})
       end
 
-      assert RatchetWrench.TransactionManager.exist_transaction? == true
+    assert %RuntimeError{message: "error from transaction"} = error
 
-      {:ok, _empty} = RatchetWrench.TransactionManager.rollback()
+    assert RatchetWrench.Repo.get(Singer, [singer_id1]) == nil
+    assert RatchetWrench.Repo.get(Singer, [singer_id2]) == nil
 
-      assert RatchetWrench.TransactionManager.exist_transaction? == true
-    end
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+  end
 
-    assert RatchetWrench.Repo.get(Singer, [singer_id]) == nil
+  test "Rollback in nest transactions(inner)" do
+    singer_id1 = UUID.uuid4()
+    singer_id2 = UUID.uuid4()
+
+    assert RatchetWrench.TransactionManager.exist_transaction? == false
+
+    {:error, error} =
+      RatchetWrench.transaction fn ->
+        assert RatchetWrench.TransactionManager.exist_transaction?
+
+        RatchetWrench.transaction fn ->
+          assert RatchetWrench.TransactionManager.exist_transaction? == true
+          {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id1,
+                                                             first_name: "trans func #{singer_id1}"})
+
+          raise "error from transaction"
+        end
+        {:ok, _singer} = RatchetWrench.Repo.insert(%Singer{singer_id: singer_id2,
+                                                             first_name: "trans func #{singer_id2}"})
+      end
+
+    assert %RuntimeError{message: "error from transaction"} = error
+
+    assert RatchetWrench.Repo.get(Singer, [singer_id1]) == nil
+    assert RatchetWrench.Repo.get(Singer, [singer_id2]) == nil
 
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
@@ -336,7 +371,7 @@ defmodule RatchetWrenchTest do
     refute RatchetWrench.TransactionManager.exist_transaction?()
 
     assert capture_log(fn ->
-      {:error, err} = RatchetWrench.transaction fn ->
+      {:error, _} = RatchetWrench.transaction fn ->
         assert RatchetWrench.TransactionManager.exist_transaction?()
 
         RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
@@ -355,9 +390,8 @@ defmodule RatchetWrenchTest do
                                                                 first_name: "trans func #{singer_id_b}"})
 
         assert RatchetWrench.TransactionManager.exist_transaction?()
-    end
+      end
 
-      assert err == :rollback
       assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
 
     end) =~ "singers already exists"

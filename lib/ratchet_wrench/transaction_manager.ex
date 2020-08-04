@@ -1,13 +1,8 @@
 defmodule RatchetWrench.TransactionManager do
-  def begin() do
-    transaction = get_transaction()
-
-    if transaction == nil do
-      transaction = begin_transaction()
-      put_transaction(transaction)
-      transaction
-    else
-      transaction
+  def get_or_begin_transaction() do
+    case get_transaction() do
+      nil -> begin()
+      transaction -> transaction
     end
   end
 
@@ -19,15 +14,11 @@ defmodule RatchetWrench.TransactionManager do
       transaction
   end
 
-  def skip_countup_begin_transaction(transaction) do
-    transaction = Map.merge(transaction, %{skip: transaction.skip + 1})
-    put_transaction(transaction)
-    transaction
-  end
+  def begin() do
+    transaction = get_transaction()
 
-  def skip_countdown_begin_transaction(transaction) do
-    if transaction.skip > 0 do
-      transaction = Map.merge(transaction, %{skip: transaction.skip - 1})
+    if transaction == nil do
+      transaction = begin_transaction()
       put_transaction(transaction)
       transaction
     else
@@ -74,13 +65,11 @@ defmodule RatchetWrench.TransactionManager do
 
   def rollback() do
     if exist_transaction?() do
-      {:ok, empty} = rollback_transaction()
+      result = rollback_transaction()
 
-      get_transaction()
-      |> Map.merge(%{rollback: true})
-      |> put_transaction()
+      delete_transaction()
 
-      {:ok, empty}
+      result
     else
       {:error, "not found transaction"}
     end
@@ -96,21 +85,11 @@ defmodule RatchetWrench.TransactionManager do
   def commit() do
     transaction = get_transaction()
 
-    if transaction.rollback do
-      delete_transaction()
-      {:error, :rollback}
-    else
-      if transaction.skip == 0 do
-        case commit_transaction(transaction) do
-          {:ok, commit_response} ->
-            delete_transaction()
-            {:ok, commit_response}
-          {:error, err} -> {:error, err}
-        end
-      else
-        put_transaction(transaction)
-        {:ok, :skip}
-      end
+    case commit_transaction(transaction) do
+      {:ok, commit_response} ->
+        delete_transaction()
+        {:ok, commit_response}
+      {:error, err} -> {:error, err}
     end
   end
 
