@@ -231,19 +231,24 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
 
-  test "error on rollback transaction" do
-    assert capture_log(fn ->
-      assert {:error, _} =
+  test "Error rollback request at raise in transaction" do
+    log = capture_log(fn ->
+      assert {:error, err} =
         RatchetWrench.transaction(fn ->
-          # without delete_tranaction
+          # Finish tranaction at commit
           transaction = RatchetWrench.TransactionManager.get_or_begin_transaction()
           connection = RatchetWrench.token_data() |> RatchetWrench.connection()
           session = transaction.session
           RatchetWrench.commit_transaction(connection, session, transaction.transaction)
 
-          raise "rollback"
+          # Rollback request is error response at after commit.
+          raise "Call rollback by this raise"
         end)
-    end) =~ "Cannot rollback a transaction after Commit() has been called"
+      assert err.__struct__ == RuntimeError
+    end)
+
+    assert log =~ "Cannot rollback a transaction after Commit() has been called"
+    assert log =~ "RatchetWrench.Exception.APIRequestError"
   end
 
   test "Nest transactions" do
