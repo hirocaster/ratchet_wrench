@@ -231,6 +231,37 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
 
+  test "error on commit transaction" do
+    singer_id = UUID.uuid4()
+    singer = %Singer{singer_id: singer_id, first_name: "John"}
+
+    assert capture_log(fn ->
+      result =
+        RatchetWrench.transaction(fn ->
+          RatchetWrench.Repo.insert(singer)
+          RatchetWrench.Repo.insert(singer)
+          :ok
+        end)
+
+      assert {:error, %RatchetWrench.Exception.APIRequestError{}} = result
+    end) =~ "table singers already exists"
+  end
+
+  test "error on rollback transaction" do
+    assert capture_log(fn ->
+      assert {:error, _} =
+        RatchetWrench.transaction(fn ->
+          # without delete_tranaction
+          transaction = RatchetWrench.TransactionManager.get_or_begin_transaction()
+          connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+          session = transaction.session
+          RatchetWrench.commit_transaction(connection, session, transaction.transaction)
+
+          raise "rollback"
+        end)
+    end) =~ "Cannot rollback a transaction after Commit() has been called"
+  end
+
   test "Nest transactions" do
     outside_singer_id = UUID.uuid4()
     inside_singer_id = UUID.uuid4()
