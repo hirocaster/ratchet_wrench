@@ -231,22 +231,6 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
 
-  test "error on commit transaction" do
-    singer_id = UUID.uuid4()
-    singer = %Singer{singer_id: singer_id, first_name: "John"}
-
-    assert capture_log(fn ->
-      result =
-        RatchetWrench.transaction(fn ->
-          RatchetWrench.Repo.insert(singer)
-          RatchetWrench.Repo.insert(singer)
-          :ok
-        end)
-
-      assert {:error, %RatchetWrench.Exception.APIRequestError{}} = result
-    end) =~ "table singers already exists"
-  end
-
   test "error on rollback transaction" do
     assert capture_log(fn ->
       assert {:error, _} =
@@ -364,9 +348,10 @@ defmodule RatchetWrenchTest do
 
   test "Duplicate insert! for sample data" do
     assert capture_log(fn ->
-      RatchetWrench.transaction fn ->
+      {:error, err} = RatchetWrench.transaction fn ->
         RatchetWrench.Repo.insert!(%Singer{singer_id: "3", first_name: "Kena"})
       end
+      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
     end) =~ "singers already exists"
   end
 
