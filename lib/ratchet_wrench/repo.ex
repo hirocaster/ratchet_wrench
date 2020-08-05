@@ -298,7 +298,8 @@ defmodule RatchetWrench.Repo do
   def update_sql(struct) do
     table_name = struct.__struct__.__table_name__
 
-    map = Map.from_struct(struct) |> remove_pk(struct)
+    map = Map.from_struct(struct) |> remove_pk(struct) |> remove_interleave(struct)
+
 
     values_list_string = Enum.reduce(map, [], fn({key, _value}, acc) ->
                            acc ++ ["#{key} = @#{key}"]
@@ -312,6 +313,13 @@ defmodule RatchetWrench.Repo do
     pk_list = struct.__struct__.__pk__
     Enum.reduce(pk_list, map, fn(pk_key, acc) ->
       Map.delete(acc, pk_key)
+    end)
+  end
+
+  def remove_interleave(map, struct) do
+    interleave_list = struct.__struct__.__interleave__
+    Enum.reduce(interleave_list, map, fn(interleave_key, acc) ->
+      Map.delete(acc, interleave_key)
     end)
   end
 
