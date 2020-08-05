@@ -62,10 +62,28 @@ defmodule UserItem do
 
   schema do
     uuid :user_item_id
-    pk [:user_item_id]
+    pk [:user_id, :user_item_id]
+    interleave [:user_id]
     attributes user_item_id: {"STRING", nil},
       user_id: {"STRING", nil},
       name: {"STRING", nil}
+  end
+end
+
+defmodule UserLog do
+  @moduledoc """
+  Sample model module for unit test.
+  """
+
+  use RatchetWrench.Model
+
+  schema do
+    uuid :user_log_id
+    pk [:user_id]
+    interleave [:user_id]
+    attributes user_log_id: {"STRING", nil},
+      user_id: {"STRING", nil},
+      message: {"STRING", nil}
   end
 end
 

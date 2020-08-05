@@ -32,10 +32,18 @@ defmodule RatchetWrench.RepoTest do
                      user_id STRING(36) NOT NULL,
                      user_item_id STRING(36) NOT NULL,
                      name STRING(MAX),
-                     ) PRIMARY KEY(user_item_id),
+                     ) PRIMARY KEY(user_id, user_item_id),
                      INTERLEAVE IN PARENT users ON DELETE CASCADE"
 
-    ddl_list = [ddl_singer, ddl_data, ddl_user, ddl_user_item]
+    ddl_user_log = "CREATE TABLE user_logs (
+                     user_id STRING(36) NOT NULL,
+                     user_log_id STRING(36) NOT NULL,
+                     message STRING(MAX),
+                     ) PRIMARY KEY(user_id),
+                     INTERLEAVE IN PARENT users ON DELETE CASCADE"
+
+
+    ddl_list = [ddl_singer, ddl_data, ddl_user, ddl_user_item, ddl_user_log]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
     Process.sleep(10_000) # Wait DML
 
@@ -76,7 +84,8 @@ defmodule RatchetWrench.RepoTest do
     on_exit fn ->
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
                                            "DROP TABLE data",
-                                           "DROP TABLE users_items",
+                                           "DROP TABLE user_logs",
+                                           "DROP TABLE user_items",
                                            "DROP TABLE users"])
       if now_tz == nil do
         System.delete_env("TZ")
@@ -446,13 +455,14 @@ defmodule RatchetWrench.RepoTest do
     test "Update record in INTERLEAVE child table" do
       parent_user = %User{name: "test-user"}
       {:ok, parent_user} = RatchetWrench.Repo.insert(parent_user)
-      child_item = %UserItem{name: "test-item", user_id: parent_user.user_id}
-      {:ok, child_item} = RatchetWrench.Repo.insert(child_item)
 
-      update_child_item = Map.merge(child_item, %{name: "test-update-item"})
-      {:ok, updated_child_item} = RatchetWrench.Repo.set(update_child_item)
+      child_log = %UserLog{user_id: parent_user.user_id, message: "test interleave"}
+      {:ok, child_log} = RatchetWrench.Repo.insert(child_log)
 
-      assert update_child_item.name == updated_child_item.name
+      update_child_log = Map.merge(child_log, %{message: "update child table record in interleave"})
+      {:ok, updated_child_log} = RatchetWrench.Repo.set(update_child_log)
+
+      assert updated_child_log.message == "update child table record in interleave"
     end
   end
 end

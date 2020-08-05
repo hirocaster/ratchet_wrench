@@ -14,4 +14,9 @@ defmodule RatchetWrench.ModelTest do
     assert Singer.__pk__ == [:singer_id]
     assert UserItem.__pk__ == [:user_id, :user_item_id]
   end
+
+  test "defined interleave" do
+    assert Singer.__interleave__ == []
+    assert UserLog.__interleave__ == [:user_id]
+  end
 end
