@@ -43,9 +43,11 @@ defmodule RatchetWrenchTest do
   test "update ddl, error syntax" do
     ddl_error = "Error Syntax DDL"
     ddl_list = [ddl_error]
-    {:error, reason} = RatchetWrench.update_ddl(ddl_list)
-    assert reason["error"]["code"] == 400
-    assert reason["error"]["message"] == "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
+    capture_log(fn ->
+      {:error, err} = RatchetWrench.update_ddl(ddl_list)
+      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+      assert err.message =~ "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
+    end)
   end
 
   test "get token" do
