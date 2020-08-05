@@ -65,7 +65,7 @@ defmodule RatchetWrench do
   def delete_session(connection, session) do
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_delete(connection, session.name) do
       {:ok, result} -> {:ok, result}
-      {:error, reason} -> {:error, reason}
+      {:error, client} -> request_api_error(client)
     end
   end
 
@@ -74,7 +74,7 @@ defmodule RatchetWrench do
     json = %{statements: ddl_list}
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_update_ddl(connection, database(), [{:body, json}]) do
       {:ok, operation} -> {:ok, operation}
-      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+      {:error, client} -> request_api_error(client)
     end
   end
 
@@ -86,7 +86,7 @@ defmodule RatchetWrench do
     json = %{options: %{readWrite: %{}} }
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_begin_transaction(connection, session.name, [{:body, json}]) do
       {:ok, transaction} -> {:ok, transaction}
-      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+      {:error, client} -> request_api_error(client)
     end
   end
 
@@ -94,7 +94,7 @@ defmodule RatchetWrench do
     json = %{transactionId: transaction.id}
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_rollback(connection, session.name, [{:body, json}]) do
       {:ok, empty} -> {:ok, empty}
-      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+      {:error, client} -> request_api_error(client)
     end
   end
 
@@ -105,7 +105,7 @@ defmodule RatchetWrench do
       {:ok, commit_response} ->
         RatchetWrench.Logger.info("Commited transaction, transaction_id: #{transaction.id}, time_stamp: #{commit_response.commitTimestamp}")
         {:ok, commit_response}
-      {:error, reason} -> {:error, Poison.Parser.parse!(reason.body, %{})}
+      {:error, client} -> request_api_error(client)
     end
   end
 
@@ -249,9 +249,16 @@ defmodule RatchetWrench do
         err in _ ->
           Logger.error(Exception.format(:error, err, __STACKTRACE__))
           if RatchetWrench.TransactionManager.exist_transaction? do
-            RatchetWrench.TransactionManager.rollback()
+            case RatchetWrench.TransactionManager.rollback() do
+              {:ok, _} ->
+                {:error, err}
+              {:error, rollback_error} ->
+                Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
+                {:error, err}
+            end
+          else
+            {:error, err}
           end
-          {:error, err}
       end
     end
   end

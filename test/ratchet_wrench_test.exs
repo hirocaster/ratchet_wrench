@@ -43,9 +43,11 @@ defmodule RatchetWrenchTest do
   test "update ddl, error syntax" do
     ddl_error = "Error Syntax DDL"
     ddl_list = [ddl_error]
-    {:error, reason} = RatchetWrench.update_ddl(ddl_list)
-    assert reason["error"]["code"] == 400
-    assert reason["error"]["message"] == "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
+    capture_log(fn ->
+      {:error, err} = RatchetWrench.update_ddl(ddl_list)
+      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+      assert err.message =~ "Error parsing Spanner DDL statement: Error Syntax DDL : Syntax error on line 1, column 1: Encountered 'Error' while parsing: ddl_statement"
+    end)
   end
 
   test "get token" do
@@ -231,6 +233,26 @@ defmodule RatchetWrenchTest do
     assert RatchetWrench.TransactionManager.exist_transaction? == false
   end
 
+  test "Error rollback request at raise in transaction" do
+    log = capture_log(fn ->
+      assert {:error, err} =
+        RatchetWrench.transaction(fn ->
+          # Finish tranaction at commit
+          transaction = RatchetWrench.TransactionManager.get_or_begin_transaction()
+          connection = RatchetWrench.token_data() |> RatchetWrench.connection()
+          session = transaction.session
+          RatchetWrench.commit_transaction(connection, session, transaction.transaction)
+
+          # Rollback request is error response at after commit.
+          raise "Call rollback by this raise"
+        end)
+      assert err.__struct__ == RuntimeError
+    end)
+
+    assert log =~ "Cannot rollback a transaction after Commit() has been called"
+    assert log =~ "RatchetWrench.Exception.APIRequestError"
+  end
+
   test "Nest transactions" do
     outside_singer_id = UUID.uuid4()
     inside_singer_id = UUID.uuid4()
@@ -333,9 +355,10 @@ defmodule RatchetWrenchTest do
 
   test "Duplicate insert! for sample data" do
     assert capture_log(fn ->
-      RatchetWrench.transaction fn ->
+      {:error, err} = RatchetWrench.transaction fn ->
         RatchetWrench.Repo.insert!(%Singer{singer_id: "3", first_name: "Kena"})
       end
+      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
     end) =~ "singers already exists"
   end
 
