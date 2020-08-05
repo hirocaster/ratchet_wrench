@@ -41,6 +41,7 @@ defmodule RatchetWrench.Model do
       Module.put_attribute(__MODULE__, :table_name, default_table_name)
       Module.register_attribute(__MODULE__, :uuid, accumulate: false)
       Module.register_attribute(__MODULE__, :pk, accumulate: false)
+      Module.register_attribute(__MODULE__, :interleave, accumulate: false)
       Module.register_attribute(__MODULE__, :attributes, accumulate: true)
 
       import RatchetWrench.Model
@@ -64,10 +65,19 @@ defmodule RatchetWrench.Model do
       pk = Module.get_attribute(__ENV__.module, :pk)
       Module.put_attribute(__ENV__.module, :pk, pk)
 
+      interleave = Module.get_attribute(__ENV__.module, :interleave)
+      if interleave == nil do
+        interleave = []
+        Module.put_attribute(__ENV__.module, :interleave, interleave)
+      else
+        Module.put_attribute(__ENV__.module, :interleave, interleave)
+      end
+
       Module.eval_quoted __ENV__, [
         RatchetWrench.Model.__defstruct__(__ENV__.module),
         RatchetWrench.Model.__valid_define_uuid__!(__ENV__.module),
         RatchetWrench.Model.__valid_define_pk__!(__ENV__.module),
+        RatchetWrench.Model.__valid_define_interleave__!(__ENV__.module),
         RatchetWrench.Model.__def_helper_funcs__(__ENV__.module)
       ]
     end
@@ -107,6 +117,19 @@ defmodule RatchetWrench.Model do
     end
   end
 
+  def __valid_define_interleave__!(mod) do
+    attributes = Module.get_attribute(mod, :attributes)
+    interleave = Module.get_attribute(mod, :interleave)
+
+    result = Enum.map(interleave, fn(key) ->
+               defined_column?(attributes, key)
+             end) |> Enum.all?
+
+    if result == false do
+      raise "Not define colum name in #{mod} module schema interleave"
+    end
+  end
+
   def defined_column?(attributes, target) do
     result = attributes
     |> Enum.map(fn {name, {_type, _default}} -> "#{name}" == "#{target}" end)
@@ -124,12 +147,14 @@ defmodule RatchetWrench.Model do
     attributes           = Module.get_attribute(mod, :attributes)
     uuid                 = Module.get_attribute(mod, :uuid)
     pk                   = Module.get_attribute(mod, :pk)
+    interleave           = Module.get_attribute(mod, :interleave)
 
     quote do
       def __table_name__, do: unquote(table_name)
       def __attributes__, do: unquote(attributes)
       def __uuid__, do: unquote(uuid)
       def __pk__, do: unquote(pk)
+      def __interleave__, do: unquote(interleave)
     end
   end
 
@@ -181,5 +206,15 @@ defmodule RatchetWrench.Model do
 
   def __pk__(mod, pk) do
     Module.put_attribute(mod, :pk, pk)
+  end
+
+  defmacro interleave(interleave) do
+    quote bind_quoted: [interleave: interleave] do
+      RatchetWrench.Model.__interleave__(__MODULE__, interleave)
+    end
+  end
+
+  def __interleave__(mod, interleave) do
+    Module.put_attribute(mod, :interleave, interleave)
   end
 end
