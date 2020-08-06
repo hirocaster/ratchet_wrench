@@ -141,11 +141,9 @@ defmodule RatchetWrench do
         {:error, client} -> request_api_error(client)
       end
     else
-      transaction fn ->
-        case do_execute_sql(sql, params, param_types) do
-          {:ok, result_set} -> {:ok, result_set}
-          {:error, client} -> request_api_error(client)
-        end
+      case transaction(fn -> do_execute_sql(sql, params, param_types) end) do
+        {:ok, result} -> result
+        {:error, client} -> request_api_error(client)
       end
     end
   end
@@ -228,7 +226,7 @@ defmodule RatchetWrench do
 
   def transaction!(callback) when is_function(callback) do
     case transaction(callback) do
-      {:ok, callback_result} -> callback_result
+      {:ok, callback_result} -> {:ok, callback_result}
       {:error, e} -> raise e
     end
   end
@@ -242,7 +240,7 @@ defmodule RatchetWrench do
         result = callback.()
 
         case RatchetWrench.TransactionManager.commit() do
-          {:ok, _commit_response} -> result
+          {:ok, _commit_response} -> {:ok, result}
           {:error, err} -> {:error, err}
         end
       rescue
