@@ -7,6 +7,9 @@ end
 defmodule RatchetWrench.Exception.PkCountMissMatchInListError do
   defexception message: "Pk count mismatch in args List type."
 end
+defmodule RatchetWrench.Exception.IsNotSameTypeOfValueInListError do
+  defexception message: "Is not the same type of value in List."
+end
 defmodule RatchetWrench.Exception.APIRequestError do
   defexception [message: "Request API error.", client: nil]
 
