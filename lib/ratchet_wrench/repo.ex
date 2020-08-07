@@ -160,6 +160,72 @@ defmodule RatchetWrench.Repo do
     end
   end
 
+  def insert_multiple(_, []), do: {:ok, []}
+
+  def insert_multiple(module, structs) when is_list(structs) do
+    now_timestamp = RatchetWrench.DateTime.now()
+
+    structs =
+      Enum.map(structs, fn struct ->
+        struct
+        |> set_uuid_value()
+        |> set_inserted_at_value(now_timestamp)
+        |> set_updated_at_value(now_timestamp)
+      end)
+
+    {sql, params, param_types} = insert_multiple_parameters(module, structs)
+
+    case RatchetWrench.execute_sql(sql, params, param_types) do
+      {:ok, _} -> {:ok, structs}
+      other -> other
+    end
+  end
+
+  defp insert_multiple_parameters(module, structs) do
+    columns = Enum.map(module.__attributes__, fn {column, _} -> column end)
+
+    {values, params, param_types} =
+      structs
+      |> Enum.with_index()
+      |> Enum.reduce({[], %{}, %{}}, fn {struct, idx}, {values, params, param_types} ->
+        {v, p, pt} = insert_multiple_values(module, struct, idx)
+
+        {values ++ [v], Map.merge(params, p), Map.merge(param_types, pt)}
+      end)
+
+    sql =
+      [
+        "INSERT ",
+        "INTO ",
+        module.__table_name__,
+        " (",
+        Enum.join(columns, ", "),
+        ") ",
+        "VALUES",
+        values |> Enum.join(", ")
+      ]
+      |> to_string()
+
+    {sql, params, param_types}
+  end
+
+  defp insert_multiple_values(module, struct, idx) do
+    attributes = module.__attributes__
+    map = Map.from_struct(struct)
+
+    {binds, params, param_types} =
+      Enum.reduce(attributes, {[], %{}, %{}}, fn {key, {type, _}}, {b, p, pt} ->
+        value = Map.get(map, key)
+        binds = b ++ ["@#{key}#{idx}"]
+        params = Map.put(p, "#{key}#{idx}", convert_value(value))
+        param_types = Map.put(pt, "#{key}#{idx}", %{code: type})
+
+        {binds, params, param_types}
+      end)
+
+    {["(", Enum.join(binds, ", "), ")"] |> to_string(), params, param_types}
+  end
+
   def insert!(struct) do
     case insert(struct) do
       {:ok, struct} -> {:ok, struct}

@@ -229,6 +229,32 @@ defmodule RatchetWrench.RepoTest do
     end) =~ "Invalid value for bind parameter singer_id:"
   end
 
+  test ".insert_multiple/2" do
+    structs = [
+      %Singer{first_name: "Alice"},
+      %Singer{first_name: "Bob"},
+      %Singer{first_name: "Carol"}
+    ]
+    assert {:ok, singers} = RatchetWrench.Repo.insert_multiple(Singer, structs)
+
+    inserted_at = hd(singers).inserted_at
+    updated_at = hd(singers).updated_at
+
+    assert length(singers) == length(structs)
+
+    Enum.each(singers, fn singer ->
+      singer = RatchetWrench.Repo.get(Singer, [singer.singer_id])
+      refute is_nil(singer)
+      assert singer.inserted_at == inserted_at
+      assert singer.updated_at == updated_at
+      RatchetWrench.Repo.delete!(Singer, [singer.singer_id])
+    end)
+  end
+
+  test ".insert_multiple/2 with empty array" do
+    assert {:ok, []} = RatchetWrench.Repo.insert_multiple(Singer, [])
+  end
+
   test "get all records from Singer" do
     {:ok, singers} = RatchetWrench.Repo.all(%Singer{})
     assert Enum.count(singers) == 2
