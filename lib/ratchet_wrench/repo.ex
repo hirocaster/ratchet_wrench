@@ -163,22 +163,30 @@ defmodule RatchetWrench.Repo do
   def insert_multiple(_, []), do: {:ok, []}
 
   def insert_multiple(module, structs) when is_list(structs) do
-    now_timestamp = RatchetWrench.DateTime.now()
+    if valid_insert_multiple?(module, structs) do
+      now_timestamp = RatchetWrench.DateTime.now()
 
-    structs =
-      Enum.map(structs, fn struct ->
-        struct
-        |> set_uuid_value()
-        |> set_inserted_at_value(now_timestamp)
-        |> set_updated_at_value(now_timestamp)
-      end)
+      structs =
+        Enum.map(structs, fn struct ->
+          struct
+          |> set_uuid_value()
+          |> set_inserted_at_value(now_timestamp)
+          |> set_updated_at_value(now_timestamp)
+        end)
 
-    {sql, params, param_types} = insert_multiple_parameters(module, structs)
+      {sql, params, param_types} = insert_multiple_parameters(module, structs)
 
-    case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, _} -> {:ok, structs}
-      other -> other
+      case RatchetWrench.execute_sql(sql, params, param_types) do
+        {:ok, _} -> {:ok, structs}
+        other -> other
+      end
+    else
+      {:error, %RatchetWrench.Exception.IsNotSameTypeOfValueInListError{}}
     end
+  end
+
+  defp valid_insert_multiple?(module, structs) when is_list(structs) do
+    Enum.all?(structs, fn(s) -> s.__struct__ == module end)
   end
 
   defp insert_multiple_parameters(module, structs) do
