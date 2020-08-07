@@ -255,6 +255,16 @@ defmodule RatchetWrench.RepoTest do
     assert {:ok, []} = RatchetWrench.Repo.insert_multiple(Singer, [])
   end
 
+  test "Error .insert_multiple/2, invalid type in args" do
+    structs = [
+      %Singer{first_name: "Alice"},
+      %Singer{first_name: "Bob"},
+      %Data{} # Is not same type. Invalid type.
+    ]
+    {:error, err} = RatchetWrench.Repo.insert_multiple(Singer, structs)
+    assert err.__struct__ == RatchetWrench.Exception.IsNotSameTypeOfValueInListError
+  end
+
   test "get all records from Singer" do
     {:ok, singers} = RatchetWrench.Repo.all(%Singer{})
     assert Enum.count(singers) == 2
