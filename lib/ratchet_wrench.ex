@@ -3,6 +3,9 @@ defmodule RatchetWrench do
   RatchetWrench is a easily use Google Cloud Spanner by Elixir.
   """
 
+  @retry_count_limit 1
+  @retry_wait_time 1000 # 1sec
+
   require Logger
 
   def execute() do
@@ -231,7 +234,7 @@ defmodule RatchetWrench do
     end
   end
 
-  def transaction(callback) when is_function(callback) do
+  def transaction(callback, retry_count \\ 0) when is_function(callback) do
     if RatchetWrench.TransactionManager.exist_transaction? do
       callback.()
     else
@@ -241,7 +244,7 @@ defmodule RatchetWrench do
 
         case RatchetWrench.TransactionManager.commit() do
           {:ok, _commit_response} -> {:ok, result}
-          {:error, err} -> {:error, err}
+          {:error, client} -> retry_transaction(callback, client, retry_count)
         end
       rescue
         err in _ ->
@@ -258,6 +261,18 @@ defmodule RatchetWrench do
             {:error, err}
           end
       end
+    end
+  end
+
+  defp retry_transaction(callback, client, retry_count) when is_function(callback) do
+    # TODO: Change loglevel to info
+    Logger.error("Retry transaction: { callback: #{inspect callback}, client: #{inspect client}, retry_count: #{retry_count} }")
+    if @retry_count_limit >= retry_count  do
+      RatchetWrench.TransactionManager.delete_transaction()
+      Process.sleep(@retry_wait_time)
+      transaction(callback, retry_count + 1)
+    else
+      {:error, client}
     end
   end
 end
