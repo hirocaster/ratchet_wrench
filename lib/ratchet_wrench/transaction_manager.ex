@@ -52,7 +52,7 @@ defmodule RatchetWrench.TransactionManager do
     Process.put(key, transaction)
   end
 
-  defp delete_transaction() do
+  def delete_transaction() do
     checkin_for_session_pool()
     key = self()
     Process.delete(key)
