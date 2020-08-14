@@ -30,8 +30,11 @@ defmodule RatchetWrench.TransactionManager do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = RatchetWrench.SessionPool.checkout()
 
-    {:ok, cloudspanner_transaction} = RatchetWrench.begin_transaction(connection, session)
-    %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}
+    case RatchetWrench.begin_transaction(connection, session) do
+      {:ok, cloudspanner_transaction} ->
+        %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}
+      {:error, err} -> raise err
+    end
   end
 
   def exist_transaction?() do
