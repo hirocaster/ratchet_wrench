@@ -244,7 +244,7 @@ defmodule RatchetWrench do
 
         case RatchetWrench.TransactionManager.commit() do
           {:ok, _commit_response} -> {:ok, result}
-          {:error, client} -> retry_transaction(callback, client, retry_count)
+          {:error, err} -> retry_transaction(callback, err, retry_count)
         end
       rescue
         err in _ ->
@@ -264,15 +264,53 @@ defmodule RatchetWrench do
     end
   end
 
-  defp retry_transaction(callback, client, retry_count) when is_function(callback) do
+  defp retry_transaction(callback, err, retry_count) when is_function(callback) do
     # TODO: Change loglevel to info
-    Logger.error("Retry transaction: { callback: #{inspect callback}, client: #{inspect client}, retry_count: #{retry_count} }")
+    Logger.error("Retry transaction: { callback: #{inspect callback}, err: #{inspect err}, retry_count: #{retry_count} }")
     if @retry_count_limit >= retry_count  do
       RatchetWrench.TransactionManager.delete_transaction()
-      Process.sleep(@retry_wait_time)
+      retry_sleep(err, retry_count)
       transaction(callback, retry_count + 1)
     else
-      {:error, client}
+      {:error, err}
     end
+  end
+
+  defp retry_sleep(err, retry_count) do
+    try do
+      client = err.client
+      if retry_count == 0 do
+        json = parse_response_body(client)
+        retry_delay_time = retry_delay(json)
+        Process.sleep(retry_delay_time)
+      else
+        Process.sleep(@retry_wait_time)
+      end
+    rescue
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        Process.sleep(@retry_wait_time)
+    end
+  end
+
+  defp parse_response_body(client) do
+    Poison.Parser.parse!(client.body, %{})
+  end
+
+  defp retry_delay(json) when is_map(json) do
+    if json["error"]["code"] == 409 do
+      if json["error"]["message"] == "Transaction was aborted." do
+        detail = List.first(json["error"]["details"])
+        if detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" do
+          detail["retryDelay"] # ex) "0.012063175s"
+          |> parse_retry_delay()
+        end
+      end
+    end
+  end
+
+  defp parse_retry_delay(str) do
+    {time_microsecond, _s} = Float.parse(str) # ex) "0.012063175s"
+    Float.ceil(time_microsecond, 3) * 1_000 |> Kernel.trunc
   end
 end
