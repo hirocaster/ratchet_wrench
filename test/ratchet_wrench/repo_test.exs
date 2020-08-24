@@ -517,6 +517,11 @@ defmodule RatchetWrench.RepoTest do
 
       {:error, err} = RatchetWrench.Repo.count_all(Ghost)
       assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+      assert capture_log(fn ->
+        {:error, err} = RatchetWrench.Repo.count_all(Ghost)
+        assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+      end) =~ "Table not found: ghosts"
+
 
     end
 
