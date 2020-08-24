@@ -514,6 +514,10 @@ defmodule RatchetWrench.RepoTest do
 
         assert RatchetWrench.Repo.count_all!(Singer) == 2
       end)
+
+      {:error, err} = RatchetWrench.Repo.count_all(Ghost)
+      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+
     end
 
     test "Count where, use map args" do
