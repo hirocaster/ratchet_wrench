@@ -480,6 +480,53 @@ defmodule RatchetWrench.Repo do
     "SELECT count(*) FROM #{table_name}"
   end
 
+  def count_where!(module, where) do
+    case count_where(module, where) do
+      {:ok, count} -> count
+      {:error, err} -> raise err
+    end
+  end
+
+  def count_where(module, where) when is_map(where) do
+    do_count_where(module, where)
+  end
+
+  defp do_count_where(module, where) when is_map(where) do
+    sql = count_where_sql(module, where)
+    params = where
+    param_types = %{}
+
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      case RatchetWrench.execute_sql(sql, params, param_types) do
+        {:ok, result_set} ->
+          {:ok, parse_count_result_set(result_set)}
+        {:error, exception} -> {:error, exception}
+      end
+    else
+      case RatchetWrench.select_execute_sql(sql, params) do
+        {:ok, result_set} ->
+          {:ok, parse_count_result_set(result_set)}
+        {:error, exception} -> {:error, exception}
+      end
+    end
+  end
+
+  defp count_where_sql(module, where) when is_map(where) do
+    table_name = module.__table_name__
+    "SELECT count(*) FROM #{table_name} WHERE " <> where_sql(where)
+  end
+
+  defp where_sql(where) when is_map(where) do
+    keys = Map.keys(where)
+    Enum.reduce(keys, "", fn(key_name, acc) ->
+      if acc == "" do
+        "#{key_name} = @#{key_name}"
+      else
+        acc <> " AND #{key_name} = @#{key_name}"
+      end
+    end)
+  end
+
   defp parse_count_result_set(result_set) do
     {count, _} = result_set.rows
       |> List.first()

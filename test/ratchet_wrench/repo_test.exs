@@ -515,5 +515,26 @@ defmodule RatchetWrench.RepoTest do
         assert RatchetWrench.Repo.count_all!(Singer) == 2
       end)
     end
+
+    test "Count where, use map args" do
+      {:ok, count} = RatchetWrench.Repo.count_where(Singer, %{first_name: "Marc"})
+      assert count == 1
+      assert RatchetWrench.Repo.count_where!(Singer, %{first_name: "Marc"}) == 1
+
+      {:ok, count} = RatchetWrench.Repo.count_where(Singer, %{first_name: "Alice"})
+      assert count == 0
+      assert RatchetWrench.Repo.count_where!(Singer, %{first_name: "Alice"}) == 0
+
+      assert capture_log(fn ->
+        {:error, err} = RatchetWrench.Repo.count_where(Singer, %{error: "params"})
+        assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+      end) =~ "Unrecognized name:"
+
+      assert capture_log(fn ->
+        assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+          RatchetWrench.Repo.count_where!(Singer, %{error: "params"})
+        end
+      end) =~ "Unrecognized name:"
+    end
   end
 end
