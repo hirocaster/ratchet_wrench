@@ -464,13 +464,13 @@ defmodule RatchetWrench.Repo do
       case RatchetWrench.execute_sql(sql, params, param_types) do
         {:ok, result_set} ->
           {:ok, parse_count_result_set(result_set)}
-        {:error, exception} -> raise exception
+        {:error, exception} -> {:error, exception}
       end
     else
       case RatchetWrench.select_execute_sql(sql, params) do
         {:ok, result_set} ->
           {:ok, parse_count_result_set(result_set)}
-        {:error, exception} -> raise exception
+        {:error, exception} -> {:error, exception}
       end
     end
   end

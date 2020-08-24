@@ -87,6 +87,22 @@ defmodule UserLog do
   end
 end
 
+defmodule Ghost do
+  @moduledoc """
+  Sample model module for unit test.
+  """
+
+  use RatchetWrench.Model
+
+  schema do
+    uuid :ghost_id
+    pk [:ghost_id]
+    attributes ghost_id: {"STRING", nil},
+      inserted_at: {"TIMESTAMP", nil},
+      updated_at: {"TIMESTAMP", nil}
+  end
+end
+
 defmodule TestHelper do
   def check_ready_table(struct) do
     uuid_name = struct.__struct__.__uuid__
