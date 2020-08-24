@@ -45,7 +45,7 @@ defmodule RatchetWrench.RepoTest do
 
     ddl_list = [ddl_singer, ddl_data, ddl_user, ddl_user_item, ddl_user_log]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
-    Process.sleep(10_000) # Wait DML
+    Process.sleep(20_000) # Wait DML
 
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
@@ -87,6 +87,7 @@ defmodule RatchetWrench.RepoTest do
                                            "DROP TABLE user_logs",
                                            "DROP TABLE user_items",
                                            "DROP TABLE users"])
+      Process.sleep(10_000) # Wait DML
       if now_tz == nil do
         System.delete_env("TZ")
       else
@@ -499,6 +500,20 @@ defmodule RatchetWrench.RepoTest do
       {:ok, updated_child_log} = RatchetWrench.Repo.set(update_child_log)
 
       assert updated_child_log.message == "update child table record in interleave"
+    end
+
+    test "Count all" do
+      {:ok, count} = RatchetWrench.Repo.count_all(Data)
+      assert count == 100
+
+      assert RatchetWrench.Repo.count_all!(Data) == 100
+
+      RatchetWrench.transaction(fn ->
+        {:ok, count} = RatchetWrench.Repo.count_all(Singer)
+        assert count == 2
+
+        assert RatchetWrench.Repo.count_all!(Singer) == 2
+      end)
     end
   end
 end

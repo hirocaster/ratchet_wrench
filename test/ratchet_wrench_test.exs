@@ -26,7 +26,7 @@ defmodule RatchetWrenchTest do
 
     ddl_list = [ddl_singer, ddl_data]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
-    Process.sleep(10_000) # Wait apply DML
+    Process.sleep(20_000) # Wait apply DML
 
     TestHelper.check_ready_table(%Singer{})
     TestHelper.check_ready_table(%Data{})
@@ -37,6 +37,7 @@ defmodule RatchetWrenchTest do
     on_exit fn ->
       {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
                                            "DROP TABLE data"])
+      Process.sleep(10_000) # Wait DML
     end
   end
 

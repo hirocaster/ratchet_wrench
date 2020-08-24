@@ -444,6 +444,50 @@ defmodule RatchetWrench.Repo do
     base_sql <> where_pk_sql(module)
   end
 
+  def count_all!(module) do
+    case count_all(module) do
+      {:ok, count} -> count
+      {:error, err} -> raise err
+    end
+  end
+
+  def count_all(module) do
+    do_count_all(module)
+  end
+
+  defp do_count_all(module) do
+    sql = count_all_sql(module)
+    params = %{}
+    param_types = %{}
+
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      case RatchetWrench.execute_sql(sql, params, param_types) do
+        {:ok, result_set} ->
+          {:ok, parse_count_result_set(result_set)}
+        {:error, exception} -> raise exception
+      end
+    else
+      case RatchetWrench.select_execute_sql(sql, params) do
+        {:ok, result_set} ->
+          {:ok, parse_count_result_set(result_set)}
+        {:error, exception} -> raise exception
+      end
+    end
+  end
+
+  defp count_all_sql(module) do
+    table_name = module.__table_name__
+    "SELECT count(*) FROM #{table_name}"
+  end
+
+  defp parse_count_result_set(result_set) do
+    {count, _} = result_set.rows
+      |> List.first()
+      |> List.first()
+      |> Integer.parse()
+    count
+  end
+
   def all(struct, where_sql, params) when is_map(struct) and is_binary(where_sql) and is_map(params) do
     try do
       table_name = to_table_name(struct)
