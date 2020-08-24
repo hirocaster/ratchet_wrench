@@ -515,14 +515,14 @@ defmodule RatchetWrench.RepoTest do
         assert RatchetWrench.Repo.count_all!(Singer) == 2
       end)
 
-      {:error, err} = RatchetWrench.Repo.count_all(Ghost)
-      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
       assert capture_log(fn ->
         {:error, err} = RatchetWrench.Repo.count_all(Ghost)
         assert err.__struct__ == RatchetWrench.Exception.APIRequestError
       end) =~ "Table not found: ghosts"
 
-
+      assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+        RatchetWrench.Repo.count_all!(Ghost)
+      end
     end
 
     test "Count where, use map args" do
