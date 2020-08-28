@@ -136,24 +136,24 @@ defmodule RatchetWrench.Repo do
       param_types = param_types(struct.__struct__)
 
       case RatchetWrench.execute_sql(sql, params, param_types) do
-      {:ok, result_set} ->
-        if result_set.rows == nil do
-          {:ok, []}
-        else
-          {:ok, convert_result_set_to_value_list(struct, result_set)}
-        end
-      {:error, :rollback} -> {:error, :rollback}
-      {:error, exception} -> {:error, exception}
+        {:ok, result_set} ->
+          if result_set.rows == nil do
+            {:ok, []}
+          else
+            {:ok, convert_result_set_to_value_list(struct, result_set)}
+          end
+        {:error, :rollback} -> {:error, :rollback}
+        {:error, exception} -> {:error, exception}
       end
     else
       case RatchetWrench.select_execute_sql(sql, params) do
-      {:ok, result_set} ->
-        if result_set.rows == nil do
-          {:ok, []}
-        else
-          {:ok, convert_result_set_to_value_list(struct, result_set)}
-        end
-      {:error, exception} -> {:error, exception}
+        {:ok, result_set} ->
+          if result_set.rows == nil do
+            {:ok, []}
+          else
+            {:ok, convert_result_set_to_value_list(struct, result_set)}
+          end
+        {:error, exception} -> {:error, exception}
       end
     end
   end
@@ -595,6 +595,7 @@ defmodule RatchetWrench.Repo do
     Map.delete(map, uuid_name)
   end
 
+  @spec set_uuid_value(struct()) :: struct()
   def set_uuid_value(struct) do
     uuid_name = struct.__struct__.__uuid__
 
