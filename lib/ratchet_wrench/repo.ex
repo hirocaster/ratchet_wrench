@@ -444,6 +444,44 @@ defmodule RatchetWrench.Repo do
     base_sql <> where_pk_sql(module)
   end
 
+  def delete_where!(module, where) do
+    case delete_where(module, where) do
+      {:ok, result} -> result
+      {:error, err} -> raise err
+    end
+  end
+
+  def delete_where(module, where) do
+    do_delete_where(module, where)
+  end
+
+  defp do_delete_where(module, where) when is_map(where) do
+    sql = delete_where_sql(module, where)
+    params = where
+    param_types = %{}
+
+    if RatchetWrench.TransactionManager.exist_transaction?() do
+      case RatchetWrench.execute_sql(sql, params, param_types) do
+        {:ok, result_set} -> {:ok, result_set.rows}
+        {:error, exception} -> {:error, exception}
+      end
+    else
+      case RatchetWrench.transaction(fn -> RatchetWrench.execute_sql(sql, params, param_types) end) do
+          {:ok, result} ->
+            case result do
+              {:ok, result_set} -> {:ok, result_set.rows}
+              {:error, exception} -> {:error, exception}
+            end
+          {:error, exception} -> {:error, exception}
+      end
+    end
+  end
+
+  defp delete_where_sql(module, where) when is_map(where) do
+    table_name = module.__table_name__
+    "DELETE FROM #{table_name} WHERE " <> where_sql(where)
+  end
+
   def count_all!(module) do
     case count_all(module) do
       {:ok, count} -> count

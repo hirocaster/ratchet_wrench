@@ -547,5 +547,36 @@ defmodule RatchetWrench.RepoTest do
         end
       end) =~ "Unrecognized name:"
     end
+
+    test "Delete where" do
+      singer = %Singer{first_name: "test_delete_where"}
+      {:ok, struct} = RatchetWrench.Repo.insert(singer)
+      assert RatchetWrench.Repo.exists?(Singer, %{singer_id: struct.singer_id})
+
+      where = %{first_name: "test_delete_where"}
+      {:ok, result} = RatchetWrench.Repo.delete_where(Singer, where)
+      assert result == nil
+
+      assert RatchetWrench.Repo.exists?(Singer, %{singer_id: struct.singer_id}) == false
+    end
+
+    test "Delete where, error case" do
+      where = %{error: "test_delete_where_error"}
+
+      assert capture_log(fn ->
+        {:error, err} = RatchetWrench.Repo.delete_where(Singer, where)
+        assert err.__struct__ == RatchetWrench.Exception.APIRequestError
+      end) =~ "Unrecognized name:"
+    end
+
+    test "raise .delete_where!" do
+      where = %{error: "test_delete_where_error"}
+
+      assert capture_log(fn ->
+        assert_raise RatchetWrench.Exception.APIRequestError, fn ->
+          RatchetWrench.Repo.delete_where!(Singer, where)
+        end
+      end) =~ "Unrecognized name:"
+    end
   end
 end
