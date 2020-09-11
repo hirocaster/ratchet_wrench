@@ -227,10 +227,31 @@ defmodule RatchetWrench do
     end
   end
 
-  def transaction!(callback) when is_function(callback) do
-    case transaction(callback) do
-      {:ok, callback_result} -> {:ok, callback_result}
-      {:error, e} -> raise e
+  def transaction!(callback, retry_count \\ 0) when is_function(callback) do
+    if RatchetWrench.TransactionManager.exist_transaction? do
+      callback.()
+    else
+      try do
+        RatchetWrench.TransactionManager.begin()
+        result = callback.()
+
+        case RatchetWrench.TransactionManager.commit() do
+          {:ok, _commit_response} -> {:ok, result}
+          {:error, err} -> retry_transaction(callback, err, retry_count)
+        end
+      rescue
+        err in _ ->
+          if RatchetWrench.TransactionManager.exist_transaction? do
+            case RatchetWrench.TransactionManager.rollback() do
+              {:ok, _} -> reraise(err, __STACKTRACE__)
+              {:error, rollback_error} ->
+                Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
+                reraise(err, __STACKTRACE__)
+            end
+          else
+            reraise(err, __STACKTRACE__)
+          end
+      end
     end
   end
 
@@ -248,11 +269,9 @@ defmodule RatchetWrench do
         end
       rescue
         err in _ ->
-          Logger.error(Exception.format(:error, err, __STACKTRACE__))
           if RatchetWrench.TransactionManager.exist_transaction? do
             case RatchetWrench.TransactionManager.rollback() do
-              {:ok, _} ->
-                {:error, err}
+              {:ok, _} -> {:error, err}
               {:error, rollback_error} ->
                 Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
                 {:error, err}
