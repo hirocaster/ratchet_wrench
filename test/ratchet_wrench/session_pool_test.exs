@@ -114,6 +114,26 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(pool.checkout) == 0
   end
 
+  test "Update approximate last use time for old session at checkin" do
+    session = RatchetWrench.SessionPool.checkout()
+    session_name = session.name
+
+    {:ok, datetime, 0} = DateTime.from_iso8601("2015-01-23 23:50:07Z")
+    old_session = Map.merge(session, %{approximateLastUseTime: datetime})
+
+    Process.sleep(1000)
+
+    RatchetWrench.SessionPool.checkin(old_session)
+    pool = RatchetWrench.SessionPool.pool
+
+    updated_session = List.last(pool.idle)
+    assert session_name == updated_session.name
+
+    time_diff = DateTime.diff(updated_session.approximateLastUseTime, old_session.approximateLastUseTime)
+    assert time_diff > 0
+    assert updated_session.__struct__ == GoogleApi.Spanner.V1.Model.Session
+  end
+
   # test "loop replace sessions in pool" do
   #   loop()
   # end

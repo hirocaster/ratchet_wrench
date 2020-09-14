@@ -80,6 +80,23 @@ defmodule RatchetWrench.SessionPool do
     end
   end
 
+  @spec update_approximate_last_use_time(GoogleApi.Spanner.V1.Model.Session.t()) :: GoogleApi.Spanner.V1.Model.Session.t()
+  defp update_approximate_last_use_time(session) do
+    try do
+      now = DateTime.utc_now
+      connection = RatchetWrench.token |> RatchetWrench.connection
+      json = %{sql: "SELECT 1"}
+
+      {:ok, _result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
+
+      Map.merge(session, %{approximateLastUseTime: now})
+
+      rescue
+        err in _ ->
+          raise RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError, err
+    end
+  end
+
   def session_bust(pool) do
     if Enum.count(pool.idle) < (session_min() / 2) do
       sessions_list = pool
@@ -223,14 +240,21 @@ defmodule RatchetWrench.SessionPool do
 
   @impl GenServer
   def handle_cast({:checkin, session}, pool) do
+    pool = remove_session_in_checkout_pool(pool, session)
+
     if is_safe_session?(session) do
-      pool = remove_session_in_checkout_pool(pool, session)
       pool = Map.merge(pool, %{idle: pool.idle ++ [session]})
       {:noreply, pool}
     else
-      pool = remove_session_in_checkout_pool(pool, session)
-      pool = Map.merge(pool, %{idle: pool.idle ++ [new_session()]})
-      {:noreply, pool}
+      try do
+        updated_session = update_approximate_last_use_time(session)
+        pool = Map.merge(pool, %{idle: pool.idle ++ [updated_session]})
+        {:noreply, pool}
+      rescue
+        _err in _ ->
+          pool = Map.merge(pool, %{idle: pool.idle ++ [new_session()]})
+          {:noreply, pool}
+      end
     end
   end
 

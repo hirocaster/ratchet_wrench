@@ -19,3 +19,13 @@ defmodule RatchetWrench.Exception.APIRequestError do
     %RatchetWrench.Exception.APIRequestError{message: msg, client: value}
   end
 end
+
+defmodule RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError do
+  defexception [message: "Faild update approximateLastUseTime in session.", err: nil]
+
+  @impl true
+  def exception(err) do
+    msg = "Faild update approximateLastUseTime in session. err: #{inspect(err)}"
+    %RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError{message: msg, err: err}
+  end
+end
