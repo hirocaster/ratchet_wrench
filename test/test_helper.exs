@@ -151,4 +151,13 @@ defmodule TestHelper do
         delete_loop(module, uuid_value)
     end
   end
+
+  def drop_all_tables() do
+    ddl_list = ["DROP TABLE data",
+                "DROP TABLE singers",
+                "DROP TABLE user_items",
+                "DROP TABLE user_logs",
+                "DROP TABLE users"]
+    {:ok, _} = RatchetWrench.update_ddl(ddl_list)
+  end
 end
