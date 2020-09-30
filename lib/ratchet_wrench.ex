@@ -56,6 +56,7 @@ defmodule RatchetWrench do
     end
   end
 
+  @doc "Create max 100 sessions at 1 request in API"
   def batch_create_session(connection, session_count) do
     json = %{sessionCount: session_count}
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(connection, database(), [{:body, json}]) do
