@@ -3,6 +3,8 @@ defmodule RatchetWrench.SessionPool do
   require Logger
 
   @session_update_boarder 60 * 55 # 55min
+  @session_min 100
+  @session_bust_num 100
 
   @impl true
   def init(pool) do
@@ -25,7 +27,7 @@ defmodule RatchetWrench.SessionPool do
     if env do
       env |> String.to_integer()
     else
-      30
+      @session_bust_num
     end
   end
 
@@ -34,7 +36,7 @@ defmodule RatchetWrench.SessionPool do
     if env do
       env |> String.to_integer()
     else
-      10
+      @session_min
     end
   end
 
