@@ -287,9 +287,8 @@ defmodule RatchetWrenchTest do
 
     assert RatchetWrench.TransactionManager.exist_transaction? == false
 
-    assert capture_log(fn ->
-      {:error, error} =
-        RatchetWrench.transaction fn ->
+    {:error, error} =
+      RatchetWrench.transaction fn ->
         assert RatchetWrench.TransactionManager.exist_transaction?
 
         RatchetWrench.transaction fn ->
@@ -306,8 +305,7 @@ defmodule RatchetWrenchTest do
                                                            first_name: "trans func #{singer_id2}"})
       end
 
-      assert %RuntimeError{message: "error from transaction"} = error
-    end) =~ "error from transaction"
+    assert %RuntimeError{message: "error from transaction"} = error
 
     assert RatchetWrench.Repo.get(Singer, [singer_id1]) == nil
     assert RatchetWrench.Repo.get(Singer, [singer_id2]) == nil
@@ -321,9 +319,9 @@ defmodule RatchetWrenchTest do
 
     assert RatchetWrench.TransactionManager.exist_transaction? == false
 
-    assert capture_log(fn ->
-      {:error, error} =
-        RatchetWrench.transaction fn ->
+
+    {:error, error} =
+      RatchetWrench.transaction fn ->
         assert RatchetWrench.TransactionManager.exist_transaction?
 
         RatchetWrench.transaction fn ->
@@ -337,8 +335,7 @@ defmodule RatchetWrenchTest do
                                                            first_name: "trans func #{singer_id2}"})
       end
 
-      assert %RuntimeError{message: "error from transaction"} = error
-    end) =~ "error from transaction"
+    assert %RuntimeError{message: "error from transaction"} = error
 
     assert RatchetWrench.Repo.get(Singer, [singer_id1]) == nil
     assert RatchetWrench.Repo.get(Singer, [singer_id2]) == nil
