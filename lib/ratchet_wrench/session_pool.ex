@@ -4,8 +4,10 @@ defmodule RatchetWrench.SessionPool do
 
   @session_update_boarder 60 * 55 # 55min
   @session_min 100
+  @session_max 10000
   @session_bust_num 100
   @session_bust_idle_percent_num 0.8
+
 
   @impl true
   def init(pool) do
@@ -42,7 +44,7 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_max do
-    System.get_env("RATCHET_WRENCH_SESSION_MAX") || 1000
+    System.get_env("RATCHET_WRENCH_SESSION_MAX") || @session_max
   end
 
   def start_link(pool \\ %RatchetWrench.Pool{}) do
