@@ -42,8 +42,9 @@ defmodule RatchetWrench.RepoTest do
                      ) PRIMARY KEY(user_id),
                      INTERLEAVE IN PARENT users ON DELETE CASCADE"
 
+    ddl_create_index = "CREATE INDEX singers_by_first_name ON singers(first_name)"
 
-    ddl_list = [ddl_singer, ddl_data, ddl_user, ddl_user_item, ddl_user_log]
+    ddl_list = [ddl_singer, ddl_data, ddl_user, ddl_user_item, ddl_user_log, ddl_create_index]
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
     Process.sleep(20_000) # Wait DML
 
@@ -82,7 +83,8 @@ defmodule RatchetWrench.RepoTest do
     System.put_env("TZ", "Asia/Tokyo")
 
     on_exit fn ->
-      {:ok, _} = RatchetWrench.update_ddl(["DROP TABLE singers",
+      {:ok, _} = RatchetWrench.update_ddl(["DROP INDEX singers_by_first_name",
+                                           "DROP TABLE singers",
                                            "DROP TABLE data",
                                            "DROP TABLE user_logs",
                                            "DROP TABLE user_items",
@@ -301,6 +303,14 @@ defmodule RatchetWrench.RepoTest do
     where_sql = "first_name = @first_name"
     params    = %{first_name: "Marc"}
     {:ok, singers_list} = RatchetWrench.Repo.where(%Singer{}, where_sql, params)
+    assert List.first(singers_list).singer_id == "1"
+    assert List.first(singers_list).first_name == "Marc"
+  end
+
+  test "get where record, use secondary index" do
+    where_sql = "first_name = @first_name"
+    params    = %{first_name: "Marc"}
+    {:ok, singers_list} = RatchetWrench.Repo.where(%Singer{}, where_sql, params, "singers_by_first_name")
     assert List.first(singers_list).singer_id == "1"
     assert List.first(singers_list).first_name == "Marc"
   end

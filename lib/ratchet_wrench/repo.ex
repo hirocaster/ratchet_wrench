@@ -128,9 +128,8 @@ defmodule RatchetWrench.Repo do
     end)
   end
 
-  def where(struct, where_string, params) do
-    table_name = struct.__struct__.__table_name__
-    sql = "SELECT * FROM #{table_name} WHERE #{where_string}"
+  def where(struct, where_string, params, index_name \\ nil) do
+    sql = do_where_sql(struct, where_string, index_name)
 
     if RatchetWrench.TransactionManager.exist_transaction?() do
       param_types = param_types(struct.__struct__)
@@ -155,6 +154,16 @@ defmodule RatchetWrench.Repo do
           end
         {:error, exception} -> {:error, exception}
       end
+    end
+  end
+
+  defp do_where_sql(struct, where_string, index_name) do
+    if index_name do
+      table_name = struct.__struct__.__table_name__
+      "SELECT * FROM #{table_name}@{FORCE_INDEX=#{index_name}} WHERE #{where_string}"
+    else
+      table_name = struct.__struct__.__table_name__
+      "SELECT * FROM #{table_name} WHERE #{where_string}"
     end
   end
 
