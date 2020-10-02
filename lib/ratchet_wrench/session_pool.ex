@@ -5,6 +5,7 @@ defmodule RatchetWrench.SessionPool do
   @session_update_boarder 60 * 55 # 55min
   @session_min 100
   @session_bust_num 100
+  @session_bust_idle_percent_num 0.8
 
   @impl true
   def init(pool) do
@@ -100,11 +101,15 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_bust(pool) do
-    if Enum.count(pool.idle) < (session_min() / 2) do
+
+    idle_session_count = Enum.count(pool.idle)
+    total_session_count = idle_session_count + Enum.count(pool.checkout)
+
+    if (idle_session_count / total_session_count) <= @session_bust_idle_percent_num do
+
       sessions_list = pool
                       |> calculation_session_bust_num()
                       |> session_batch_create()
-
 
       pool = Map.merge(pool, %RatchetWrench.Pool{idle: pool.idle ++ sessions_list})
       pool
