@@ -74,20 +74,38 @@ defmodule RatchetWrench.SessionPoolTest do
   end
 
   test "session bust at interval" do
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+
+    session1 = RatchetWrench.SessionPool.checkout()
+
+    Process.sleep(3000) # Wait session bust(session batch create for idle pool) by interval monitor
+
+    RatchetWrench.SessionPool.checkin(session1)
+
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 13
+
+    RatchetWrench.SessionPool.delete_over_idle_sessions()
+
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+  end
+
+  test "create new session at empty idle session in pool" do
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
     session1 = RatchetWrench.SessionPool.checkout()
     session2 = RatchetWrench.SessionPool.checkout()
     session3 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 0
+
     session4 = RatchetWrench.SessionPool.checkout() # idle empty and create new session
-    Process.sleep(3000) # wait bust(session batch create)
+
     RatchetWrench.SessionPool.checkin(session1)
     RatchetWrench.SessionPool.checkin(session2)
     RatchetWrench.SessionPool.checkin(session3)
     RatchetWrench.SessionPool.checkin(session4)
 
-    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 14
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 4
 
     RatchetWrench.SessionPool.delete_over_idle_sessions()
-
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
   end
 
