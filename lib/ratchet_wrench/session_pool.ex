@@ -7,6 +7,7 @@ defmodule RatchetWrench.SessionPool do
   @session_max 10000
   @session_bust_num 100
   @session_bust_idle_percent_num 0.8
+  @batch_create_session_max 100 # Specification of Google CloudSpanner
 
 
   @impl true
@@ -49,18 +50,12 @@ defmodule RatchetWrench.SessionPool do
 
   def start_link(pool \\ %RatchetWrench.Pool{}) do
     if Enum.empty?(pool.idle) do
-      sessions = batch_create_session(session_min())
+      sessions = session_batch_create(session_min())
       pool = %RatchetWrench.Pool{idle: sessions}
       GenServer.start_link(__MODULE__, pool, name: __MODULE__)
     else
       GenServer.start_link(__MODULE__, pool, name: __MODULE__)
     end
-  end
-
-  def batch_create_session(session_num) do
-    token = RatchetWrench.token
-    connection = RatchetWrench.connection(token)
-    RatchetWrench.batch_create_session(connection, session_num)
   end
 
   def checkout do
@@ -132,9 +127,16 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_batch_create(num) do
-    RatchetWrench.token
-    |> RatchetWrench.connection
-    |> RatchetWrench.batch_create_session(num)
+    connection = RatchetWrench.connection(RatchetWrench.token())
+
+    times = div(num, @batch_create_session_max)
+
+    if times > 0 do
+      session_list = Enum.map(1..times, fn(_) -> RatchetWrench.batch_create_session(connection, 100) end) |> List.flatten()
+      session_list ++ RatchetWrench.batch_create_session(connection, rem(num, @batch_create_session_max))
+    else
+      RatchetWrench.batch_create_session(connection, rem(num, @batch_create_session_max))
+    end
   end
 
   def set_interval do

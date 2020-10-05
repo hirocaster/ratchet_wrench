@@ -57,12 +57,16 @@ defmodule RatchetWrench do
   end
 
   @doc "Create max 100 sessions at 1 request in API"
-  def batch_create_session(connection, session_count) do
-    json = %{sessionCount: session_count}
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(connection, database(), [{:body, json}]) do
-      {:ok, response} -> response.session
-      {:error, _reason} ->
-        raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+  def batch_create_session(connection, session_count) when is_number(session_count) do
+    if session_count > 0 do
+      json = %{sessionCount: session_count}
+      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(connection, database(), [{:body, json}]) do
+        {:ok, response} -> response.session
+        {:error, _reason} ->
+          raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
+      end
+    else
+      []
     end
   end
 

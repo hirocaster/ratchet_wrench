@@ -134,6 +134,18 @@ defmodule RatchetWrench.SessionPoolTest do
     assert updated_session.__struct__ == GoogleApi.Spanner.V1.Model.Session
   end
 
+  test "Batch create many sessions" do
+    sessions_list = RatchetWrench.SessionPool.session_batch_create(95)
+    assert Enum.count(sessions_list) == 95
+
+    Enum.each(sessions_list, fn(x) -> RatchetWrench.SessionPool.delete_session(x) end)
+
+    sessions_list = RatchetWrench.SessionPool.session_batch_create(1122)
+    assert Enum.count(sessions_list) == 1122
+
+    Enum.each(sessions_list, fn(x) -> RatchetWrench.SessionPool.delete_session(x) end)
+  end
+
   # test "loop replace sessions in pool" do
   #   loop()
   # end
