@@ -6,12 +6,10 @@ defmodule RatchetWrench.SessionPoolTest do
     System.put_env("RATCHET_WRENCH_SESSION_MIN", "3")
 
     session_monitor_interval = RatchetWrench.SessionPool.session_monitor_interval()
-    System.put_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL", "1000") # 1sec
+    System.put_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL", "2000") # 2sec
 
     session_bust_num = RatchetWrench.SessionPool.session_bust_num()
     System.put_env("RATCHET_WRENCH_SESSION_BUST", "10")
-
-    start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
 
     on_exit fn ->
       System.put_env("RATCHET_WRENCH_SESSION_MIN", session_min  |> Integer.to_string())
@@ -20,9 +18,17 @@ defmodule RatchetWrench.SessionPoolTest do
     end
   end
 
+  setup do
+    {:ok, _pid} = start_supervised({RatchetWrench.SessionPool, %RatchetWrench.Pool{}})
+
+    on_exit fn ->
+      nil
+    end
+  end
+
   test "Check setup config" do
     assert RatchetWrench.SessionPool.session_min() == 3
-    assert RatchetWrench.SessionPool.session_monitor_interval() == 1000
+    assert RatchetWrench.SessionPool.session_monitor_interval() == 2000
     assert RatchetWrench.SessionPool.session_bust_num() == 10
   end
 
