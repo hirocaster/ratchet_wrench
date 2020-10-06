@@ -589,4 +589,36 @@ defmodule RatchetWrench.RepoTest do
       end) =~ "Unrecognized name:"
     end
   end
+
+  test "Stress test for transaction was aboarted." do
+    # 1..1000
+    # |> Enum.map(fn(num) ->
+      1..100000
+      |> Enum.map(fn(num) ->
+        # Task.async(fn ->
+          new_data = %Data{string: Faker.String.base64(1_024_000),
+                           bool: List.first(Enum.take_random([true, false], 1)),
+                           int: List.first(Enum.take_random(0..9, 1)),
+                           float: 99.9,
+                           date: Faker.Date.date_of_birth(),
+                           time_stamp: Faker.DateTime.forward(365)
+                          }
+          # RatchetWrench.transaction(fn ->
+           case RatchetWrench.Repo.insert(new_data) do
+             {:ok, new_data_struct} -> {:ok, new_data_struct}
+             {:error, err} ->
+               IO.puts "Debug err output"
+               IO.inspect err
+               {:error, err}
+           end
+           # end)
+           IO.puts num
+      end)
+      # {:ok, count} = RatchetWrench.Repo.count_all(Data)
+      # assert count == 200
+      # end)
+      # |> Enum.map(&Task.await &1, 60_000 * 5)
+
+    # end)
+  end
 end

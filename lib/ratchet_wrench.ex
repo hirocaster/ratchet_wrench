@@ -5,6 +5,7 @@ defmodule RatchetWrench do
 
   @retry_count_limit 1
   @retry_wait_time 1000 # 1sec
+  @do_retry_http_status_code 409
 
   require Logger
 
@@ -242,7 +243,12 @@ defmodule RatchetWrench do
 
         case RatchetWrench.TransactionManager.commit() do
           {:ok, _commit_response} -> {:ok, result}
-          {:error, err} -> retry_transaction(callback, err, retry_count)
+          {:error, err} ->
+            if err.client.status == @do_retry_http_status_code do
+              retry_transaction(callback, err, retry_count)
+            else
+              raise err
+            end
         end
       rescue
         err in _ ->
@@ -270,7 +276,12 @@ defmodule RatchetWrench do
 
         case RatchetWrench.TransactionManager.commit() do
           {:ok, _commit_response} -> {:ok, result}
-          {:error, err} -> retry_transaction(callback, err, retry_count)
+          {:error, err} ->
+            if err.client.status == @do_retry_http_status_code do
+              retry_transaction(callback, err, retry_count)
+            else
+              raise err
+            end
         end
       rescue
         err in _ ->
