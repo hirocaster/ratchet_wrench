@@ -154,6 +154,7 @@ defmodule TestHelper do
 
   def drop_all_tables() do
     ddl_list = ["DROP TABLE data",
+                "DROP INDEX singers_by_first_name",
                 "DROP TABLE singers",
                 "DROP TABLE user_items",
                 "DROP TABLE user_logs",
