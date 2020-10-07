@@ -95,24 +95,20 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
   end
 
-  test "create new session at empty idle session in pool" do
+  test "Session bust at empty idle session" do
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+
     session1 = RatchetWrench.SessionPool.checkout()
     session2 = RatchetWrench.SessionPool.checkout()
     session3 = RatchetWrench.SessionPool.checkout()
-    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 0
-
-    session4 = RatchetWrench.SessionPool.checkout() # idle empty and create new session
+    session4 = RatchetWrench.SessionPool.checkout()
 
     RatchetWrench.SessionPool.checkin(session1)
     RatchetWrench.SessionPool.checkin(session2)
     RatchetWrench.SessionPool.checkin(session3)
     RatchetWrench.SessionPool.checkin(session4)
 
-    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 4
-
-    RatchetWrench.SessionPool.delete_over_idle_sessions()
-    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 13
   end
 
   test "Status at checkout/checkin" do

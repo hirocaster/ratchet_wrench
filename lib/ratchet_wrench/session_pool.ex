@@ -98,7 +98,6 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_bust(pool) do
-
     idle_session_count = Enum.count(pool.idle)
     total_session_count = idle_session_count + Enum.count(pool.checkout)
 
@@ -219,14 +218,11 @@ defmodule RatchetWrench.SessionPool do
 
   def checkout_safe_session(pool) do
     if Enum.empty?(pool.idle) do
-      session = new_session()
-      checkout = pool.checkout ++ [session]
-      pool = Map.merge(pool, %{checkout: checkout})
-      {session, pool}
+      busted_pool = session_bust(pool)
+      checkout_safe_session(busted_pool)
     else
       [session | tail] = pool.idle
       pool = Map.merge(pool, %{idle: tail})
-
 
       if is_safe_session?(session) do
         checkout = pool.checkout ++ [session]
