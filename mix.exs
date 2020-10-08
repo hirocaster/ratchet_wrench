@@ -35,6 +35,7 @@ defmodule RatchetWrench.MixProject do
       {:elixir_uuid, "~> 1.2" },
       {:tzdata, "~> 1.0.3"},
       {:faker, "~> 0.13", only: :test},
+      {:timex, "~> 3.6.1", only: :test},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false},
       {:excoveralls, "~> 0.10", only: :test},

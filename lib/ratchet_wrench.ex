@@ -91,6 +91,21 @@ defmodule RatchetWrench do
     System.get_env("RATCHET_WRENCH_DATABASE") || Application.fetch_env(:ratchet_wrench, :database)
   end
 
+  def project_id() do
+    {project_id, _other} = Regex.split(~r{/}, RatchetWrench.database()) |> List.pop_at(1)
+    project_id
+  end
+
+  def instance_id() do
+    {instance_id, _other} = Regex.split(~r{/}, RatchetWrench.database()) |> List.pop_at(3)
+    instance_id
+  end
+
+  def database_id() do
+    {database_id, _other} =Regex.split(~r{/}, RatchetWrench.database()) |> List.pop_at(5)
+    database_id
+  end
+
   def begin_transaction(connection, session) do
     json = %{options: %{readWrite: %{}} }
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_begin_transaction(connection, session.name, [{:body, json}]) do
