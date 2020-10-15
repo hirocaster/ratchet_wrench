@@ -2,7 +2,7 @@ defmodule RatchetWrench.SessionPool do
   use GenServer, shutdown: 10_000
   require Logger
 
-  @session_update_boarder 60 * 55 # 55min
+  @session_update_boarder 60 * 40 # 40min
   @session_min 100
   @session_max 10000
   @session_bust_num 100
