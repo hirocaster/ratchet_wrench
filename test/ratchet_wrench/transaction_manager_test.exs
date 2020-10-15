@@ -22,8 +22,21 @@ defmodule RatchetWrench.TransactionManagerTest do
   test "Commit transaction" do
     RatchetWrench.TransactionManager.begin()
 
+    pool = RatchetWrench.SessionPool.pool()
+    before_session = List.first(pool.checkout)
+
     {:ok, commit_response} = RatchetWrench.TransactionManager.commit()
     assert commit_response.__struct__ == GoogleApi.Spanner.V1.Model.CommitResponse
+
+    pool = RatchetWrench.SessionPool.pool()
+    after_session = List.last(pool.idle)
+
+    assert before_session.name == after_session.name
+
+    time_diff = DateTime.diff(after_session.approximateLastUseTime, before_session.approximateLastUseTime)
+
+    refute before_session.approximateLastUseTime == after_session.approximateLastUseTime
+    assert time_diff > 0
 
     keys = RatchetWrench.TransactionManager.get_keys()
     assert (self() in keys) == false

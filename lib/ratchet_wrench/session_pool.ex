@@ -97,6 +97,12 @@ defmodule RatchetWrench.SessionPool do
     end
   end
 
+  @spec only_update_approximate_last_use_time_from_now(GoogleApi.Spanner.V1.Model.Session.t()) :: GoogleApi.Spanner.V1.Model.Session.t()
+  def only_update_approximate_last_use_time_from_now(session) do
+    now = DateTime.utc_now
+    Map.merge(session, %{approximateLastUseTime: now})
+  end
+
   def session_bust(pool) do
     idle_session_count = Enum.count(pool.idle)
     total_session_count = idle_session_count + Enum.count(pool.checkout)

@@ -66,6 +66,14 @@ defmodule RatchetWrench.TransactionManager do
     RatchetWrench.SessionPool.checkin(transaction.session)
   end
 
+  defp update_approximate_last_use_time_in_transaction() do
+    transaction = get_transaction()
+    updated_session = RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(transaction.session)
+    updated_transaction = Map.merge(transaction, %{session: updated_session})
+    put_transaction(updated_transaction)
+    updated_transaction
+  end
+
   def rollback() do
     if exist_transaction?() do
       result = rollback_transaction()
@@ -90,6 +98,7 @@ defmodule RatchetWrench.TransactionManager do
 
     case commit_transaction(transaction) do
       {:ok, commit_response} ->
+        update_approximate_last_use_time_in_transaction()
         delete_transaction()
         {:ok, commit_response}
       {:error, err} -> {:error, err}
