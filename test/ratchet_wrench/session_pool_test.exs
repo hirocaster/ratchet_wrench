@@ -51,11 +51,36 @@ defmodule RatchetWrench.SessionPoolTest do
   #   |> Enum.map(&Task.await &1, 60000)
   # end
 
-  test "FIFO in session pool" do
-    session = RatchetWrench.SessionPool.checkout()
-    RatchetWrench.SessionPool.checkin(session)
+  test "FILO in session pool" do
     pool = RatchetWrench.SessionPool.pool()
-    assert session.name == List.last(pool.idle).name
+    first_idle_session = List.first(pool.idle)
+
+    session1 = RatchetWrench.SessionPool.checkout()
+    RatchetWrench.SessionPool.checkin(session1)
+
+    pool = RatchetWrench.SessionPool.pool()
+    last_idle_session = List.last(pool.idle)
+    assert first_idle_session.name == last_idle_session.name
+
+    session2 = RatchetWrench.SessionPool.checkout()
+    RatchetWrench.SessionPool.checkin(session2)
+
+    pool = RatchetWrench.SessionPool.pool()
+    last_idle_session = List.last(pool.idle)
+    assert session2.name == last_idle_session.name
+
+    refute session1.name == session2.name
+
+    session3 = RatchetWrench.SessionPool.checkout()
+    RatchetWrench.SessionPool.checkin(session3)
+
+    refute session1.name == session3.name
+    refute session2.name == session3.name
+
+    reuse_session1 = RatchetWrench.SessionPool.checkout()
+    RatchetWrench.SessionPool.checkin(reuse_session1)
+
+    assert session1.name == reuse_session1.name
   end
 
   test ".is_safe_session?" do
