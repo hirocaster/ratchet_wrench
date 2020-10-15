@@ -90,7 +90,10 @@ defmodule RatchetWrenchTest do
     assert result_set.rows == [["1"]]
   end
 
-  test "execute SELECT SQL" do
+  test "execute SELECT SQL, and update approximateLastUseTime in session" do
+    pool = RatchetWrench.SessionPool.pool()
+    before_session = List.first(pool.idle)
+
     {:ok, result_set} = RatchetWrench.select_execute_sql("SELECT * FROM singers", %{})
     assert result_set != nil
 
@@ -102,6 +105,15 @@ defmodule RatchetWrenchTest do
     assert singer_id == "3"
     assert first_name == "Kena"
     assert last_name == nil
+
+    pool = RatchetWrench.SessionPool.pool()
+    after_session = List.last(pool.idle)
+
+    assert before_session.name == after_session.name
+
+    time_diff = DateTime.diff(after_session.approximateLastUseTime, before_session.approximateLastUseTime)
+    refute before_session.approximateLastUseTime == after_session.approximateLastUseTime
+    assert time_diff > 0
   end
 
   test "SQL INSERT/UPDATE/DELETE" do

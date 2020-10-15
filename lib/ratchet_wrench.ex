@@ -140,7 +140,8 @@ defmodule RatchetWrench do
 
     case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
       {:ok, result_set} ->
-        RatchetWrench.SessionPool.checkin(session)
+        RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(session)
+        |> RatchetWrench.SessionPool.checkin()
         {:ok, result_set}
       {:error, client} ->
         RatchetWrench.SessionPool.checkin(session)
