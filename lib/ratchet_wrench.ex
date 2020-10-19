@@ -3,7 +3,7 @@ defmodule RatchetWrench do
   RatchetWrench is a easily use Google Cloud Spanner by Elixir.
   """
 
-  @retry_count_limit 1
+  @retry_count_limit 3
   @retry_wait_time 1000 # 1sec
   @do_retry_http_status_code 409
 
