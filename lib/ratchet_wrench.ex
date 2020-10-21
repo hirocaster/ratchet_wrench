@@ -323,6 +323,7 @@ defmodule RatchetWrench do
       retry_sleep(err, retry_count)
       transaction(callback, retry_count + 1)
     else
+      Logger.error("Give up retry transaction: { callback: #{inspect callback}, err: #{inspect err}, retry_count: #{retry_count} }")
       {:error, err}
     end
   end
