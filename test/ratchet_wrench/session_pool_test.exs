@@ -136,6 +136,16 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 13
   end
 
+  test "session bust at all expired sessions" do
+    empty_pool = %RatchetWrench.Pool{}
+    assert Enum.count(empty_pool.idle) == 0
+    assert Enum.count(empty_pool.checkout) == 0
+
+    busted_pool = RatchetWrench.SessionPool.session_bust(empty_pool)
+    assert Enum.count(busted_pool.idle) == 10
+    assert Enum.count(busted_pool.checkout) == 0
+  end
+
   test "Status at checkout/checkin" do
     session_a = RatchetWrench.SessionPool.checkout()
 

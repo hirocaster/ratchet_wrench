@@ -107,7 +107,7 @@ defmodule RatchetWrench.SessionPool do
     idle_session_count = Enum.count(pool.idle)
     total_session_count = idle_session_count + Enum.count(pool.checkout)
 
-    if (idle_session_count / total_session_count) <= @session_bust_idle_percent_num do
+    if total_session_count == 0 or (idle_session_count / total_session_count) <= @session_bust_idle_percent_num do
 
       sessions_list = pool
                       |> calculation_session_bust_num()
