@@ -238,7 +238,7 @@ defmodule RatchetWrenchTest do
         end)
       end)
     end)
-    |> Enum.map(&Task.await &1, 10000)
+    |> Enum.map(&Task.await &1, 30000)
   end
 
   test "Transaction commit, only call .execute_sql" do
@@ -408,7 +408,7 @@ defmodule RatchetWrenchTest do
     refute RatchetWrench.TransactionManager.exist_transaction?()
 
     assert capture_log(fn ->
-      {:error, _} = RatchetWrench.transaction fn ->
+      {:error, err} = RatchetWrench.transaction fn ->
         assert RatchetWrench.TransactionManager.exist_transaction?()
 
         RatchetWrench.Repo.insert(%Singer{singer_id: singer_id,
@@ -429,6 +429,7 @@ defmodule RatchetWrenchTest do
         assert RatchetWrench.TransactionManager.exist_transaction?()
       end
 
+      assert err.__struct__ == RatchetWrench.Exception.APIRequestError
       assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
 
     end) =~ "singers already exists"

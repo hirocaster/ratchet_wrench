@@ -189,7 +189,15 @@ defmodule RatchetWrench do
       {:ok, result_set} ->
         RatchetWrench.TransactionManager.countup_seqno(transaction)
         {:ok, result_set}
-      {:error, client} -> {:error, client}
+      {:error, client} ->
+        if RatchetWrench.TransactionManager.exist_transaction?() do
+          if is_retry_response?(client) do
+            raise RatchetWrench.Exception.APIRequestError, client
+          end
+          {:error, client}
+        else
+          {:error, client}
+        end
     end
   end
 
@@ -260,13 +268,28 @@ defmodule RatchetWrench do
         case RatchetWrench.TransactionManager.commit() do
           {:ok, _commit_response} -> {:ok, result}
           {:error, err} ->
-            if err.client.status == @do_retry_http_status_code do
+            if is_retry_response?(err.client) do
               retry_transaction(callback, err, retry_count)
             else
               raise err
             end
         end
       rescue
+        err in RatchetWrench.Exception.APIRequestError ->
+          if is_retry_response?(err.client) do
+            retry_transaction(callback, err, retry_count)
+          else
+            if RatchetWrench.TransactionManager.exist_transaction? do
+              case RatchetWrench.TransactionManager.rollback() do
+                {:ok, _} -> {:error, err}
+                {:error, rollback_error} ->
+                  Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
+                  reraise(err, __STACKTRACE__)
+              end
+            else
+              reraise(err, __STACKTRACE__)
+            end
+          end
         err in _ ->
           if RatchetWrench.TransactionManager.exist_transaction? do
             case RatchetWrench.TransactionManager.rollback() do
@@ -293,13 +316,28 @@ defmodule RatchetWrench do
         case RatchetWrench.TransactionManager.commit() do
           {:ok, _commit_response} -> {:ok, result}
           {:error, err} ->
-            if err.client.status == @do_retry_http_status_code do
+            if is_retry_response?(err.client) do
               retry_transaction(callback, err, retry_count)
             else
               raise err
             end
         end
       rescue
+        err in RatchetWrench.Exception.APIRequestError ->
+          if is_retry_response?(err.client) do
+            retry_transaction(callback, err, retry_count)
+          else
+            if RatchetWrench.TransactionManager.exist_transaction? do
+              case RatchetWrench.TransactionManager.rollback() do
+                {:ok, _} -> {:error, err}
+                {:error, rollback_error} ->
+                  Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
+                  {:error, err}
+              end
+            else
+              {:error, err}
+            end
+          end
         err in _ ->
           if RatchetWrench.TransactionManager.exist_transaction? do
             case RatchetWrench.TransactionManager.rollback() do
@@ -353,14 +391,30 @@ defmodule RatchetWrench do
     Poison.Parser.parse!(client.body, %{})
   end
 
-  defp retry_delay(json) when is_map(json) do
-    if json["error"]["code"] == 409 do
-      if json["error"]["message"] == "Transaction was aborted." do
+  defp is_retry_response?(client) do
+    json = parse_response_body(client)
+    if json["error"]["code"] == @do_retry_http_status_code do
+      if json["error"]["details"] do
         detail = List.first(json["error"]["details"])
         if detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" do
-          detail["retryDelay"] # ex) "0.012063175s"
-          |> parse_retry_delay()
+          true
+        else
+          false
         end
+      else
+        false
+      end
+    else
+      false
+    end
+  end
+
+  defp retry_delay(json) when is_map(json) do
+    if json["error"]["code"] == @do_retry_http_status_code do
+      detail = List.first(json["error"]["details"])
+      if detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" do
+        detail["retryDelay"] # ex) "0.012063175s"
+        |> parse_retry_delay()
       end
     end
   end
