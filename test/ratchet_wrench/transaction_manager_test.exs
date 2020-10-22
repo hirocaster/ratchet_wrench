@@ -9,7 +9,7 @@ defmodule RatchetWrench.TransactionManagerTest do
   test "Create transaction in not exist transaction manager" do
     assert RatchetWrench.TransactionManager.get_keys() == [:rand_seed] # default key ???
 
-    transaction = RatchetWrench.TransactionManager.begin()
+    {:ok, transaction} = RatchetWrench.TransactionManager.begin()
 
     assert transaction.__struct__ == RatchetWrench.Transaction
     assert transaction.seqno == 1
@@ -43,8 +43,8 @@ defmodule RatchetWrench.TransactionManagerTest do
   end
 
   test "Return equal transaction at begin()" do
-    transaction_1st = RatchetWrench.TransactionManager.begin()
-    transaction_2nd = RatchetWrench.TransactionManager.begin()
+    {:ok, transaction_1st} = RatchetWrench.TransactionManager.begin()
+    {:ok, transaction_2nd} = RatchetWrench.TransactionManager.begin()
 
     assert transaction_1st.transaction == transaction_2nd.transaction
     assert transaction_1st.transaction.id == transaction_2nd.transaction.id

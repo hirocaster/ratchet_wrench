@@ -14,15 +14,25 @@ defmodule RatchetWrench.TransactionManager do
       transaction
   end
 
+  def begin!() do
+    case begin() do
+      {:ok, transaction} -> transaction
+      {:error, err} -> raise err
+    end
+  end
+
   def begin() do
     transaction = get_transaction()
 
     if transaction == nil do
-      transaction = begin_transaction()
-      put_transaction(transaction)
-      transaction
+      case begin_transaction() do
+        {:ok, transaction} ->
+          put_transaction(transaction)
+          {:ok, transaction}
+        {:error, err} -> {:error, err}
+      end
     else
-      transaction
+      {:ok, transaction}
     end
   end
 
@@ -32,8 +42,8 @@ defmodule RatchetWrench.TransactionManager do
 
     case RatchetWrench.begin_transaction(connection, session) do
       {:ok, cloudspanner_transaction} ->
-        %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}
-      {:error, err} -> raise err
+        {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
+      {:error, err} -> {:error, err}
     end
   end
 
@@ -93,6 +103,13 @@ defmodule RatchetWrench.TransactionManager do
     RatchetWrench.rollback_transaction(connection, session, transaction.transaction)
   end
 
+  def commit!() do
+    case commit() do
+      {:ok, commit_response} -> commit_response
+      {:error, err} -> raise err
+    end
+  end
+
   def commit() do
     transaction = get_transaction()
 
@@ -108,7 +125,10 @@ defmodule RatchetWrench.TransactionManager do
   defp commit_transaction(transaction) do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = transaction.session
-    RatchetWrench.commit_transaction(connection, session, transaction.transaction)
+    case RatchetWrench.commit_transaction(connection, session, transaction.transaction) do
+      {:ok, commit_response} -> {:ok, commit_response}
+      {:error, err} -> {:error, err}
+    end
   end
 
   def get_keys() do

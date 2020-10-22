@@ -262,18 +262,10 @@ defmodule RatchetWrench do
       callback.()
     else
       try do
-        RatchetWrench.TransactionManager.begin()
+        RatchetWrench.TransactionManager.begin!()
         result = callback.()
-
-        case RatchetWrench.TransactionManager.commit() do
-          {:ok, _commit_response} -> {:ok, result}
-          {:error, err} ->
-            if is_retry_response?(err.client) do
-              retry_transaction(callback, err, retry_count)
-            else
-              raise err
-            end
-        end
+        RatchetWrench.TransactionManager.commit!()
+        {:ok, result}
       rescue
         err in RatchetWrench.Exception.APIRequestError ->
           if is_retry_response?(err.client) do
@@ -310,18 +302,10 @@ defmodule RatchetWrench do
       callback.()
     else
       try do
-        RatchetWrench.TransactionManager.begin()
+        RatchetWrench.TransactionManager.begin!()
         result = callback.()
-
-        case RatchetWrench.TransactionManager.commit() do
-          {:ok, _commit_response} -> {:ok, result}
-          {:error, err} ->
-            if is_retry_response?(err.client) do
-              retry_transaction(callback, err, retry_count)
-            else
-              raise err
-            end
-        end
+        RatchetWrench.TransactionManager.commit!()
+        {:ok, result}
       rescue
         err in RatchetWrench.Exception.APIRequestError ->
           if is_retry_response?(err.client) do
