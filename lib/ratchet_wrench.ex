@@ -334,7 +334,11 @@ defmodule RatchetWrench do
       if retry_count == 0 do
         json = parse_response_body(client)
         retry_delay_time = retry_delay(json)
-        Process.sleep(retry_delay_time)
+        if retry_delay_time do
+          Process.sleep(retry_delay_time)
+        else
+          Process.sleep(@retry_wait_time)
+        end
       else
         Process.sleep(@retry_wait_time)
       end
