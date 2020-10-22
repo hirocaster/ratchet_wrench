@@ -273,7 +273,7 @@ defmodule RatchetWrench do
           else
             if RatchetWrench.TransactionManager.exist_transaction? do
               case RatchetWrench.TransactionManager.rollback() do
-                {:ok, _} -> {:error, err}
+                {:ok, _} -> reraise(err, __STACKTRACE__)
                 {:error, rollback_error} ->
                   Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
                   reraise(err, __STACKTRACE__)
