@@ -6,7 +6,7 @@ defmodule RatchetWrench.SessionPool do
   @session_min 100
   @session_max 10000
   @session_bust_num 100
-  @session_bust_idle_percent_num 0.8
+  @session_bust_checkout_percent_num 0.2
   @batch_create_session_max 100 # Specification of Google CloudSpanner
 
 
@@ -104,11 +104,7 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_bust(pool) do
-    idle_session_count = Enum.count(pool.idle)
-    total_session_count = idle_session_count + Enum.count(pool.checkout)
-
-    if total_session_count == 0 or (idle_session_count / total_session_count) <= @session_bust_idle_percent_num do
-
+    if should_session_bust?(pool) do
       sessions_list = pool
                       |> calculation_session_bust_num()
                       |> session_batch_create()
@@ -117,6 +113,22 @@ defmodule RatchetWrench.SessionPool do
       pool
     else
       pool
+    end
+  end
+
+  def should_session_bust?(pool) do
+    idle_session_count = Enum.count(pool.idle)
+    checkout_session_count = Enum.count(pool.checkout)
+    total_session_count = idle_session_count + checkout_session_count
+
+    if total_session_count == 0 or idle_session_count == 0 do
+      true
+    else
+      if (checkout_session_count / total_session_count) >= @session_bust_checkout_percent_num do
+        true
+      else
+        false
+      end
     end
   end
 

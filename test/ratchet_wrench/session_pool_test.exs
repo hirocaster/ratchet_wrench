@@ -146,6 +146,29 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(busted_pool.checkout) == 0
   end
 
+  test "should_session_bust?/1" do
+    should_bust_pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3]}
+    assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
+
+    should_bust_pool = %RatchetWrench.Pool{idle: [3], checkout: [1, 2]}
+    assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
+
+    should_bust_pool = %RatchetWrench.Pool{idle: [2, 3, 4, 5], checkout: [1]}
+    assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
+
+    should_bust_pool = %RatchetWrench.Pool{idle: [3, 4, 5, 6, 7, 8, 9, 10], checkout: [1, 2]}
+    assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
+
+    should_not_bust_pool = %RatchetWrench.Pool{idle: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], checkout: [1, 2]}
+    refute RatchetWrench.SessionPool.should_session_bust?(should_not_bust_pool)
+
+    should_not_bust_pool = %RatchetWrench.Pool{idle: [2, 3, 4, 5, 6, 7, 8, 9, 10], checkout: [1]}
+    refute RatchetWrench.SessionPool.should_session_bust?(should_not_bust_pool)
+
+    should_not_bust_pool = %RatchetWrench.Pool{idle: [1, 2, 3], checkout: []}
+    refute RatchetWrench.SessionPool.should_session_bust?(should_not_bust_pool)
+  end
+
   test "Status at checkout/checkin" do
     session_a = RatchetWrench.SessionPool.checkout()
 
