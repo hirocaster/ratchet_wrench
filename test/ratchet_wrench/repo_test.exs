@@ -112,12 +112,10 @@ defmodule RatchetWrench.RepoTest do
     end
   end
 
-  test ".get/2 bad pk list args `PkCountMissMatchInListError`" do
-    assert capture_log(fn ->
-      assert_raise RatchetWrench.Exception.PkCountMissMatchInListError, fn ->
-        RatchetWrench.Repo.get!(Singer, ["3", "over_count_pk"])
-      end
-    end) =~ "Pk count mismatch in args List type."
+  test ".get!/2 bad pk list args `PkCountMissMatchInListError`" do
+    assert_raise RatchetWrench.Exception.PkCountMissMatchInListError, fn ->
+      RatchetWrench.Repo.get!(Singer, ["3", "over_count_pk"])
+    end
   end
 
   test "get not found id" do
