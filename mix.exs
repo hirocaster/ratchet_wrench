@@ -39,6 +39,7 @@ defmodule RatchetWrench.MixProject do
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false},
       {:excoveralls, "~> 0.10", only: :test},
+      {:mix_audit, "~> 0.1", only: [:dev, :test], runtime: false},
     ]
   end
 end
