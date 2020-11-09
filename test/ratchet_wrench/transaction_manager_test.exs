@@ -23,7 +23,7 @@ defmodule RatchetWrench.TransactionManagerTest do
     RatchetWrench.TransactionManager.begin()
 
     pool = RatchetWrench.SessionPool.pool()
-    before_session = List.first(pool.checkout)
+    before_session = List.last(pool.checkout)
 
     {:ok, commit_response} = RatchetWrench.TransactionManager.commit()
     assert commit_response.__struct__ == GoogleApi.Spanner.V1.Model.CommitResponse
