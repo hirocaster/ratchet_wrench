@@ -133,7 +133,7 @@ defmodule RatchetWrench do
     end
   end
 
-  def select_execute_sql(sql, params) do
+  def select_execute_sql(sql, params, retry_count \\ 0) do
     json = %{sql: sql, params: params}
     connection = RatchetWrench.token |> RatchetWrench.connection
     session = RatchetWrench.SessionPool.checkout()
@@ -144,8 +144,24 @@ defmodule RatchetWrench do
         |> RatchetWrench.SessionPool.checkin()
         {:ok, result_set}
       {:error, client} ->
-        RatchetWrench.SessionPool.checkin(session)
-        request_api_error(client)
+        if is_retry_response?(client) do
+          if @retry_count_limit >= retry_count  do
+            Logger.error("Retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+            retry_sleep(client, retry_count)
+            select_execute_sql(sql, params, retry_count + 1)
+          else
+            Logger.error("Give up retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+            RatchetWrench.SessionPool.checkin(session)
+            request_api_error(client)
+          end
+        else
+          if RatchetWrench.TransactionManager.exist_transaction?() do
+            raise RatchetWrench.Exception.APIRequestError, client
+          else
+            RatchetWrench.SessionPool.checkin(session)
+            request_api_error(client)
+          end
+        end
     end
   end
 
@@ -342,7 +358,7 @@ defmodule RatchetWrench do
     Logger.error("Retry transaction: { callback: #{inspect callback}, err: #{inspect err}, retry_count: #{retry_count} }")
     if @retry_count_limit >= retry_count  do
       RatchetWrench.TransactionManager.delete_transaction()
-      retry_sleep(err, retry_count)
+      retry_sleep(err.client, retry_count)
       transaction(callback, retry_count + 1)
     else
       Logger.error("Give up retry transaction: { callback: #{inspect callback}, err: #{inspect err}, retry_count: #{retry_count} }")
@@ -350,9 +366,8 @@ defmodule RatchetWrench do
     end
   end
 
-  defp retry_sleep(err, retry_count) do
+  defp retry_sleep(client, retry_count) do
     try do
-      client = err.client
       if retry_count == 0 do
         json = parse_response_body(client)
         retry_delay_time = retry_delay(json)
