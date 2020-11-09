@@ -22,6 +22,8 @@ defmodule RatchetWrench.TransactionManagerTest do
   test "Commit transaction" do
     RatchetWrench.TransactionManager.begin()
 
+    Process.sleep(1000)
+
     pool = RatchetWrench.SessionPool.pool()
     before_session = List.last(pool.checkout)
 
