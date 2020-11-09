@@ -40,10 +40,14 @@ defmodule RatchetWrench.TransactionManager do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = RatchetWrench.SessionPool.checkout()
 
-    case RatchetWrench.begin_transaction(connection, session) do
-      {:ok, cloudspanner_transaction} ->
-        {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
-      {:error, err} -> {:error, err}
+    if session == :error do
+      {:error, %RatchetWrench.Exception.EmptyIdleSessionAndMaxSession{}}
+    else
+      case RatchetWrench.begin_transaction(connection, session) do
+        {:ok, cloudspanner_transaction} ->
+          {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
+        {:error, err} -> {:error, err}
+      end
     end
   end
 

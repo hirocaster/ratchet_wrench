@@ -126,13 +126,17 @@ defmodule RatchetWrench.SessionPool do
     checkout_session_count = Enum.count(pool.checkout)
     total_session_count = idle_session_count + checkout_session_count
 
-    if total_session_count == 0 or idle_session_count == 0 do
-      true
+    if total_session_count >= session_max() do
+      false
     else
-      if (checkout_session_count / total_session_count) >= @session_bust_checkout_percent_num do
+      if total_session_count == 0 or idle_session_count == 0 do
         true
       else
-        false
+        if (checkout_session_count / total_session_count) >= @session_bust_checkout_percent_num do
+          true
+        else
+          false
+        end
       end
     end
   end
@@ -141,14 +145,20 @@ defmodule RatchetWrench.SessionPool do
     total_session_now = Enum.count(pool.idle ++ pool.checkout)
     limit_create_session_num = session_max() - total_session_now
 
-    if session_bust_num() < limit_create_session_num do
-      session_bust_num()
+    if limit_create_session_num < 1 do
+      0
     else
-      limit_create_session_num
+      if session_bust_num() < limit_create_session_num do
+        session_bust_num()
+      else
+        limit_create_session_num
+      end
     end
   end
 
-  def session_batch_create(num) do
+  def session_batch_create(num) when is_nil(num), do: []
+  def session_batch_create(num) when is_integer(num) < 1, do: []
+  def session_batch_create(num) when is_integer(num) > 0 do
     connection = RatchetWrench.connection(RatchetWrench.token())
 
     times = div(num, @batch_create_session_max)
@@ -191,8 +201,10 @@ defmodule RatchetWrench.SessionPool do
 
   @impl GenServer
   def handle_call(:checkout, _from, pool) do
-    {session, pool} = checkout_safe_session(pool)
-    {:reply, session, pool}
+    case checkout_safe_session(pool) do
+      {:error, pool} -> {:reply, :error, pool}
+      {session, pool} -> {:reply, session, pool}
+    end
   end
 
   @impl GenServer
@@ -241,8 +253,13 @@ defmodule RatchetWrench.SessionPool do
 
   def checkout_safe_session(pool) do
     if Enum.empty?(pool.idle) do
-      busted_pool = session_bust(pool)
-      checkout_safe_session(busted_pool)
+      if should_session_bust?(pool) do
+        busted_pool = session_bust(pool)
+        checkout_safe_session(busted_pool)
+      else
+        Logger.error("Empty idle session and max session pool. Max config session #{session_max()} at now. Checkout sessions count #{Enum.count(pool.checkout)} at now.")
+        {:error, pool}
+      end
     else
       [session | tail] = pool.idle
       pool = Map.merge(pool, %{idle: tail})
