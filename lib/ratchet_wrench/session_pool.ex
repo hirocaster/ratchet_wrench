@@ -4,7 +4,7 @@ defmodule RatchetWrench.SessionPool do
 
   @session_update_boarder 60 * 40 # 40min
   @session_min 100
-  @session_max 10000
+  @session_max 300
   @session_bust_num 100
   @session_bust_checkout_percent_num 0.2
   @batch_create_session_max 100 # Specification of Google CloudSpanner
