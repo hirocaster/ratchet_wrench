@@ -45,7 +45,12 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_max do
-    System.get_env("RATCHET_WRENCH_SESSION_MAX") || @session_max
+    env = System.get_env("RATCHET_WRENCH_SESSION_MAX")
+    if env do
+      env |> String.to_integer()
+    else
+      @session_max
+    end
   end
 
   def start_link(pool \\ %RatchetWrench.Pool{}) do
