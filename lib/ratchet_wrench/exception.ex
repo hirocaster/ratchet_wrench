@@ -29,3 +29,6 @@ defmodule RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError do
     %RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError{message: msg, err: err}
   end
 end
+defmodule RatchetWrench.Exception.EmptyIdleSessionAndMaxSession do
+  defexception message: "Empty idle session, max sessions."
+end

@@ -22,8 +22,10 @@ defmodule RatchetWrench.TransactionManagerTest do
   test "Commit transaction" do
     RatchetWrench.TransactionManager.begin()
 
+    Process.sleep(1000)
+
     pool = RatchetWrench.SessionPool.pool()
-    before_session = List.first(pool.checkout)
+    before_session = List.last(pool.checkout)
 
     {:ok, commit_response} = RatchetWrench.TransactionManager.commit()
     assert commit_response.__struct__ == GoogleApi.Spanner.V1.Model.CommitResponse

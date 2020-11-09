@@ -1,9 +1,13 @@
 defmodule RatchetWrench.SessionPoolTest do
   use ExUnit.Case
+  import ExUnit.CaptureLog
 
   setup_all do
     session_min = RatchetWrench.SessionPool.session_min()
     System.put_env("RATCHET_WRENCH_SESSION_MIN", "3")
+
+    session_max = RatchetWrench.SessionPool.session_max()
+    System.put_env("RATCHET_WRENCH_SESSION_MAX", "15")
 
     session_monitor_interval = RatchetWrench.SessionPool.session_monitor_interval()
     System.put_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL", "2000") # 2sec
@@ -13,6 +17,7 @@ defmodule RatchetWrench.SessionPoolTest do
 
     on_exit fn ->
       System.put_env("RATCHET_WRENCH_SESSION_MIN", session_min  |> Integer.to_string())
+      System.put_env("RATCHET_WRENCH_SESSION_MAX", session_max  |> Integer.to_string())
       System.put_env("RATCHET_WRENCH_SESSION_MONITOR_INTERVAL", session_monitor_interval |> Integer.to_string())
       System.put_env("RATCHET_WRENCH_SESSION_BUST", session_bust_num |> Integer.to_string())
     end
@@ -28,6 +33,7 @@ defmodule RatchetWrench.SessionPoolTest do
 
   test "Check setup config" do
     assert RatchetWrench.SessionPool.session_min() == 3
+    assert RatchetWrench.SessionPool.session_max() == 15
     assert RatchetWrench.SessionPool.session_monitor_interval() == 2000
     assert RatchetWrench.SessionPool.session_bust_num() == 10
   end
@@ -122,18 +128,58 @@ defmodule RatchetWrench.SessionPoolTest do
 
   test "Session bust at empty idle session" do
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
 
     session1 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 1
     session2 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 2
     session3 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 3
     session4 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 9
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 4
+    session5 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 8
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 5
+    session6 = RatchetWrench.SessionPool.checkout()
+    session7 = RatchetWrench.SessionPool.checkout()
+    session8 = RatchetWrench.SessionPool.checkout()
+    session9 = RatchetWrench.SessionPool.checkout()
+    session10 = RatchetWrench.SessionPool.checkout()
+    session11 = RatchetWrench.SessionPool.checkout()
+    session12 = RatchetWrench.SessionPool.checkout()
+    session13 = RatchetWrench.SessionPool.checkout()
+    session14 = RatchetWrench.SessionPool.checkout()
+    session15 = RatchetWrench.SessionPool.checkout()
+
+    assert capture_log(fn ->
+      session16 = RatchetWrench.SessionPool.checkout()
+      assert :error == session16
+    end) =~ "Empty idle session and max session pool."
+
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 15
 
     RatchetWrench.SessionPool.checkin(session1)
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 14
     RatchetWrench.SessionPool.checkin(session2)
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 13
     RatchetWrench.SessionPool.checkin(session3)
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 12
     RatchetWrench.SessionPool.checkin(session4)
+    RatchetWrench.SessionPool.checkin(session5)
+    RatchetWrench.SessionPool.checkin(session6)
+    RatchetWrench.SessionPool.checkin(session7)
+    RatchetWrench.SessionPool.checkin(session8)
+    RatchetWrench.SessionPool.checkin(session9)
+    RatchetWrench.SessionPool.checkin(session10)
+    RatchetWrench.SessionPool.checkin(session11)
+    RatchetWrench.SessionPool.checkin(session12)
+    RatchetWrench.SessionPool.checkin(session13)
+    RatchetWrench.SessionPool.checkin(session14)
+    RatchetWrench.SessionPool.checkin(session15)
 
-    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 13
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 15
   end
 
   test "session bust at all expired sessions" do
@@ -158,6 +204,12 @@ defmodule RatchetWrench.SessionPoolTest do
 
     should_bust_pool = %RatchetWrench.Pool{idle: [3, 4, 5, 6, 7, 8, 9, 10], checkout: [1, 2]}
     assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
+
+    should_not_bust_pool = %RatchetWrench.Pool{idle: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], checkout: []}
+    refute RatchetWrench.SessionPool.should_session_bust?(should_not_bust_pool)
+
+    should_not_bust_pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}
+    refute RatchetWrench.SessionPool.should_session_bust?(should_not_bust_pool)
 
     should_not_bust_pool = %RatchetWrench.Pool{idle: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], checkout: [1, 2]}
     refute RatchetWrench.SessionPool.should_session_bust?(should_not_bust_pool)
@@ -222,6 +274,25 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(sessions_list) == 1122
 
     Enum.each(sessions_list, fn(x) -> RatchetWrench.SessionPool.delete_session(x) end)
+  end
+
+  test "session_batch_create/1" do
+    assert [] == RatchetWrench.SessionPool.session_batch_create(nil)
+    assert [] == RatchetWrench.SessionPool.session_batch_create(0)
+  end
+
+  test "calculation_session_bust_num/1" do
+    pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3]}
+    assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 10
+
+    pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+    assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 5
+
+    pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}
+    assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 0
+
+    pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]} # Bug over sessions
+    assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 0
   end
 
   # test "loop replace sessions in pool" do
