@@ -180,6 +180,7 @@ defmodule RatchetWrench.SessionPoolTest do
     RatchetWrench.SessionPool.checkin(session15)
 
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 15
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
   end
 
   test "session bust at all expired sessions" do
