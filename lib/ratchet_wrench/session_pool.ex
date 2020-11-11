@@ -114,8 +114,7 @@ defmodule RatchetWrench.SessionPool do
                       |> calculation_session_bust_num()
                       |> session_batch_create()
 
-      %RatchetWrench.Pool{idle: pool.idle ++ sessions_list,
-                          checkout: pool.checkout}
+      Map.merge(pool, %{idle: pool.idle ++ sessions_list})
     else
       pool
     end
