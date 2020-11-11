@@ -163,7 +163,7 @@ defmodule RatchetWrench.SessionPool do
     times = div(num, @batch_create_session_max)
 
     if times > 0 do
-      session_list = Enum.map(1..times, fn(_) -> RatchetWrench.batch_create_session(connection, 100) end) |> List.flatten()
+      session_list = Enum.map(1..times, fn(_) -> RatchetWrench.batch_create_session(connection, @batch_create_session_max) end) |> List.flatten()
       session_list ++ RatchetWrench.batch_create_session(connection, rem(num, @batch_create_session_max))
     else
       RatchetWrench.batch_create_session(connection, rem(num, @batch_create_session_max))
