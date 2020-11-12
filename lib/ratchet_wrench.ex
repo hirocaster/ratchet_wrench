@@ -138,34 +138,43 @@ defmodule RatchetWrench do
     connection = RatchetWrench.token |> RatchetWrench.connection
     session = RatchetWrench.SessionPool.checkout()
 
-    if session == :error do
-      {:error, %RatchetWrench.Exception.EmptyIdleSessionAndMaxSession{}}
-    else
-      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
-        {:ok, result_set} ->
-          RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(session)
-          |> RatchetWrench.SessionPool.checkin()
-          {:ok, result_set}
-        {:error, client} ->
-          if is_retry_response?(client) do
-            if @retry_count_limit >= retry_count  do
-              Logger.error("Retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
-              retry_sleep(client, retry_count)
-              select_execute_sql(sql, params, retry_count + 1)
+    try do
+      if session == :error do
+        raise RatchetWrench.Exception.EmptyIdleSessionAndMaxSession
+      else
+        case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
+          {:ok, result_set} ->
+            RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(session)
+            |> RatchetWrench.SessionPool.checkin()
+            {:ok, result_set}
+          {:error, client} ->
+            if is_retry_response?(client) do
+              if @retry_count_limit >= retry_count  do
+                Logger.error("Retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+                retry_sleep(client, retry_count)
+                select_execute_sql(sql, params, retry_count + 1)
+              else
+                Logger.error("Give up retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+                RatchetWrench.SessionPool.checkin(session)
+                request_api_error(client)
+              end
             else
-              Logger.error("Give up retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
-              RatchetWrench.SessionPool.checkin(session)
-              request_api_error(client)
+              if RatchetWrench.TransactionManager.exist_transaction?() do
+                raise RatchetWrench.Exception.APIRequestError, client
+              else
+                RatchetWrench.SessionPool.checkin(session)
+                request_api_error(client)
+              end
             end
-          else
-            if RatchetWrench.TransactionManager.exist_transaction?() do
-              raise RatchetWrench.Exception.APIRequestError, client
-            else
-              RatchetWrench.SessionPool.checkin(session)
-              request_api_error(client)
-            end
-          end
+        end
       end
+    rescue
+      err in RatchetWrench.Exception.EmptyIdleSessionAndMaxSession ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
     end
   end
 

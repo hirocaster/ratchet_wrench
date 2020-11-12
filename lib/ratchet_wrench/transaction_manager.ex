@@ -1,4 +1,6 @@
 defmodule RatchetWrench.TransactionManager do
+  require Logger
+
   def get_or_begin_transaction() do
     case get_transaction() do
       nil -> begin()
@@ -40,14 +42,23 @@ defmodule RatchetWrench.TransactionManager do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = RatchetWrench.SessionPool.checkout()
 
-    if session == :error do
-      {:error, %RatchetWrench.Exception.EmptyIdleSessionAndMaxSession{}}
-    else
-      case RatchetWrench.begin_transaction(connection, session) do
-        {:ok, cloudspanner_transaction} ->
-          {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
-        {:error, err} -> {:error, err}
+    try do
+      if session == :error do
+        raise RatchetWrench.Exception.EmptyIdleSessionAndMaxSession
+      else
+        case RatchetWrench.begin_transaction(connection, session) do
+          {:ok, cloudspanner_transaction} ->
+            {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
+          {:error, err} -> {:error, err}
+        end
       end
+    rescue
+      err in RatchetWrench.Exception.EmptyIdleSessionAndMaxSession ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
+      err in _ ->
+        Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        {:error, err}
     end
   end
 
