@@ -131,11 +131,16 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 0
 
     session1 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 2
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 1
     session2 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 1
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 2
     session3 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 0
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 3
+
+    # at bust session
     session4 = RatchetWrench.SessionPool.checkout()
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 9
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 4
@@ -143,16 +148,40 @@ defmodule RatchetWrench.SessionPoolTest do
     assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 8
     assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 5
     session6 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 7
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 6
     session7 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 6
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 7
     session8 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 5
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 8
     session9 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 4
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 9
     session10 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 3
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 10
     session11 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 2
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 11
     session12 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 1
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 12
     session13 = RatchetWrench.SessionPool.checkout()
-    session14 = RatchetWrench.SessionPool.checkout()
-    session15 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 0
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 13
 
+    # at session bust
+    session14 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 1
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 14
+
+    session15 = RatchetWrench.SessionPool.checkout()
+    assert Enum.count(RatchetWrench.SessionPool.pool.idle) == 0
+    assert Enum.count(RatchetWrench.SessionPool.pool.checkout) == 15
+
+    # at session limit max
     assert capture_log(fn ->
       session16 = RatchetWrench.SessionPool.checkout()
       assert :error == session16
