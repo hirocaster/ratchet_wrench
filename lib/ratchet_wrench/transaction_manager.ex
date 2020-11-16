@@ -49,7 +49,9 @@ defmodule RatchetWrench.TransactionManager do
         case RatchetWrench.begin_transaction(connection, session) do
           {:ok, cloudspanner_transaction} ->
             {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
-          {:error, err} -> {:error, err}
+          {:error, err} ->
+            RatchetWrench.SessionPool.checkin(session)
+            {:error, err}
         end
       end
     rescue
@@ -58,6 +60,7 @@ defmodule RatchetWrench.TransactionManager do
         {:error, err}
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
+        RatchetWrench.SessionPool.checkin(session)
         {:error, err}
     end
   end

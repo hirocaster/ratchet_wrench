@@ -151,6 +151,7 @@ defmodule RatchetWrench do
             if is_retry_response?(client) do
               if @retry_count_limit >= retry_count  do
                 Logger.error("Retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+                RatchetWrench.SessionPool.checkin(session)
                 retry_sleep(client, retry_count)
                 select_execute_sql(sql, params, retry_count + 1)
               else
