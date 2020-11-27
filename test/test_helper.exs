@@ -8,13 +8,16 @@ defmodule Singer do
   use RatchetWrench.Model
 
   schema do
-    uuid :singer_id
-    pk [:singer_id]
-    attributes singer_id: {"STRING", nil},
+    uuid(:singer_id)
+    pk([:singer_id])
+
+    attributes(
+      singer_id: {"STRING", nil},
       first_name: {"STRING", nil},
       last_name: {"STRING", nil},
       inserted_at: {"TIMESTAMP", nil},
       updated_at: {"TIMESTAMP", nil}
+    )
   end
 end
 
@@ -26,15 +29,18 @@ defmodule Data do
   use RatchetWrench.Model
 
   schema do
-    uuid :data_id
-    pk [:data_id]
-    attributes data_id: {"STRING", nil},
+    uuid(:data_id)
+    pk([:data_id])
+
+    attributes(
+      data_id: {"STRING", nil},
       string: {"STRING", ""},
-      bool: {"BOOL", nil },
+      bool: {"BOOL", nil},
       int: {"INT64", nil},
       float: {"FLOAT64", nil},
       date: {"DATE", nil},
       time_stamp: {"TIMESTAMP", nil}
+    )
   end
 end
 
@@ -46,10 +52,13 @@ defmodule User do
   use RatchetWrench.Model
 
   schema do
-    uuid :user_id
-    pk [:user_id]
-    attributes user_id: {"STRING", nil},
+    uuid(:user_id)
+    pk([:user_id])
+
+    attributes(
+      user_id: {"STRING", nil},
       name: {"STRING", nil}
+    )
   end
 end
 
@@ -61,12 +70,15 @@ defmodule UserItem do
   use RatchetWrench.Model
 
   schema do
-    uuid :user_item_id
-    pk [:user_id, :user_item_id]
-    interleave [:user_id]
-    attributes user_item_id: {"STRING", nil},
+    uuid(:user_item_id)
+    pk([:user_id, :user_item_id])
+    interleave([:user_id])
+
+    attributes(
+      user_item_id: {"STRING", nil},
       user_id: {"STRING", nil},
       name: {"STRING", nil}
+    )
   end
 end
 
@@ -78,12 +90,15 @@ defmodule UserLog do
   use RatchetWrench.Model
 
   schema do
-    uuid :user_log_id
-    pk [:user_id]
-    interleave [:user_id]
-    attributes user_log_id: {"STRING", nil},
+    uuid(:user_log_id)
+    pk([:user_id])
+    interleave([:user_id])
+
+    attributes(
+      user_log_id: {"STRING", nil},
       user_id: {"STRING", nil},
       message: {"STRING", nil}
+    )
   end
 end
 
@@ -95,11 +110,14 @@ defmodule Ghost do
   use RatchetWrench.Model
 
   schema do
-    uuid :ghost_id
-    pk [:ghost_id]
-    attributes ghost_id: {"STRING", nil},
+    uuid(:ghost_id)
+    pk([:ghost_id])
+
+    attributes(
+      ghost_id: {"STRING", nil},
       inserted_at: {"TIMESTAMP", nil},
       updated_at: {"TIMESTAMP", nil}
+    )
   end
 end
 
@@ -117,7 +135,9 @@ defmodule TestHelper do
 
   def insert_loop(struct) do
     case RatchetWrench.Repo.insert(struct) do
-      {:ok, result} -> {:ok, result}
+      {:ok, result} ->
+        {:ok, result}
+
       {:error, _reason} ->
         Process.sleep(1000)
         insert_loop(struct)
@@ -126,7 +146,9 @@ defmodule TestHelper do
 
   def set_loop(struct) do
     case RatchetWrench.Repo.set(struct) do
-      {:ok, result} -> {:ok, result}
+      {:ok, result} ->
+        {:ok, result}
+
       {:error, _} ->
         Process.sleep(1000)
         set_loop(struct)
@@ -135,6 +157,7 @@ defmodule TestHelper do
 
   def get_loop(module, uuid_value) do
     result = RatchetWrench.Repo.get(module, uuid_value)
+
     if result == nil do
       Process.sleep(1000)
       get_loop(module, uuid_value)
@@ -145,7 +168,9 @@ defmodule TestHelper do
 
   def delete_loop(module, uuid_value) do
     case RatchetWrench.Repo.delete(module, uuid_value) do
-      {:ok, result} -> {:ok, result}
+      {:ok, result} ->
+        {:ok, result}
+
       {:error} ->
         Process.sleep(1000)
         delete_loop(module, uuid_value)
@@ -153,12 +178,15 @@ defmodule TestHelper do
   end
 
   def drop_all_tables() do
-    ddl_list = ["DROP TABLE data",
-                "DROP INDEX singers_by_first_name",
-                "DROP TABLE singers",
-                "DROP TABLE user_items",
-                "DROP TABLE user_logs",
-                "DROP TABLE users"]
+    ddl_list = [
+      "DROP TABLE data",
+      "DROP INDEX singers_by_first_name",
+      "DROP TABLE singers",
+      "DROP TABLE user_items",
+      "DROP TABLE user_logs",
+      "DROP TABLE users"
+    ]
+
     {:ok, _} = RatchetWrench.update_ddl(ddl_list)
   end
 end

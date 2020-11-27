@@ -7,7 +7,8 @@ defmodule RatchetWrench.TransactionManagerTest do
   end
 
   test "Create transaction in not exist transaction manager" do
-    assert RatchetWrench.TransactionManager.get_keys() == [:rand_seed] # default key ???
+    # default key ???
+    assert RatchetWrench.TransactionManager.get_keys() == [:rand_seed]
 
     {:ok, transaction} = RatchetWrench.TransactionManager.begin()
 
@@ -35,13 +36,14 @@ defmodule RatchetWrench.TransactionManagerTest do
 
     assert before_session.name == after_session.name
 
-    time_diff = DateTime.diff(after_session.approximateLastUseTime, before_session.approximateLastUseTime)
+    time_diff =
+      DateTime.diff(after_session.approximateLastUseTime, before_session.approximateLastUseTime)
 
     refute before_session.approximateLastUseTime == after_session.approximateLastUseTime
     assert time_diff > 0
 
     keys = RatchetWrench.TransactionManager.get_keys()
-    assert (self() in keys) == false
+    assert self() in keys == false
   end
 
   test "Return equal transaction at begin()" do

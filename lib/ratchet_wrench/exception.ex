@@ -1,17 +1,21 @@
 defmodule RatchetWrench.Exception do
   defexception message: "Exception in RatchetWrench."
 end
+
 defmodule RatchetWrench.Exception.TransactionError do
   defexception message: "Raise exception in transaction."
 end
+
 defmodule RatchetWrench.Exception.PkCountMissMatchInListError do
   defexception message: "Pk count mismatch in args List type."
 end
+
 defmodule RatchetWrench.Exception.IsNotSameTypeOfValueInListError do
   defexception message: "Is not the same type of value in List."
 end
+
 defmodule RatchetWrench.Exception.APIRequestError do
-  defexception [message: "Request API error.", client: nil]
+  defexception message: "Request API error.", client: nil
 
   @impl true
   def exception(value) do
@@ -21,7 +25,7 @@ defmodule RatchetWrench.Exception.APIRequestError do
 end
 
 defmodule RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError do
-  defexception [message: "Faild update approximateLastUseTime in session.", err: nil]
+  defexception message: "Faild update approximateLastUseTime in session.", err: nil
 
   @impl true
   def exception(err) do
@@ -29,6 +33,7 @@ defmodule RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError do
     %RatchetWrench.Exception.FaildUpdateApproximateLastUseTimeError{message: msg, err: err}
   end
 end
+
 defmodule RatchetWrench.Exception.EmptyIdleSessionAndMaxSession do
   defexception message: "Empty idle session, max sessions."
 end

@@ -4,17 +4,25 @@ defmodule RatchetWrench do
   """
 
   @retry_count_limit 3
-  @retry_wait_time 1000 # 1sec
+  # 1sec
+  @retry_wait_time 1000
   @do_retry_http_status_code 409
 
   require Logger
 
   def execute() do
-    token = RatchetWrench.token
+    token = RatchetWrench.token()
     connection = RatchetWrench.connection(token)
     {:ok, session} = RatchetWrench.Session.create(connection)
     json = %{sql: "SELECT 1"}
-    {:ok, result_set} = GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}])
+
+    {:ok, result_set} =
+      GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(
+        connection,
+        session.name,
+        [{:body, json}]
+      )
+
     {:ok, _} = RatchetWrench.Session.delete(connection, session)
     {:ok, result_set}
   end
@@ -28,6 +36,7 @@ defmodule RatchetWrench do
 
   def token_data() do
     scope = "https://www.googleapis.com/auth/spanner.data"
+
     case Goth.Token.for_scope(scope) do
       {:ok, token} -> token
       {:error, reason} -> {:error, reason}
@@ -36,6 +45,7 @@ defmodule RatchetWrench do
 
   def token_admin() do
     scope = "https://www.googleapis.com/auth/spanner.admin"
+
     case Goth.Token.for_scope(scope) do
       {:ok, token} -> token
       {:error, reason} -> {:error, reason}
@@ -51,7 +61,10 @@ defmodule RatchetWrench do
   end
 
   def create_session(connection) do
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(connection, database()) do
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_create(
+           connection,
+           database()
+         ) do
       {:ok, session} -> session
       {:error, _} -> raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
     end
@@ -61,8 +74,15 @@ defmodule RatchetWrench do
   def batch_create_session(connection, session_count) when is_number(session_count) do
     if session_count > 0 do
       json = %{sessionCount: session_count}
-      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(connection, database(), [{:body, json}]) do
-        {:ok, response} -> response.session
+
+      case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_batch_create(
+             connection,
+             database(),
+             [{:body, json}]
+           ) do
+        {:ok, response} ->
+          response.session
+
         {:error, _reason} ->
           raise "Database config error. Check env `RATCHET_WRENCH_DATABASE` or config"
       end
@@ -72,7 +92,10 @@ defmodule RatchetWrench do
   end
 
   def delete_session(connection, session) do
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_delete(connection, session.name) do
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_delete(
+           connection,
+           session.name
+         ) do
       {:ok, result} -> {:ok, result}
       {:error, client} -> request_api_error(client)
     end
@@ -81,7 +104,12 @@ defmodule RatchetWrench do
   def update_ddl(ddl_list) do
     connection = RatchetWrench.token_admin() |> RatchetWrench.connection()
     json = %{statements: ddl_list}
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_update_ddl(connection, database(), [{:body, json}]) do
+
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_update_ddl(
+           connection,
+           database(),
+           [{:body, json}]
+         ) do
       {:ok, operation} -> {:ok, operation}
       {:error, client} -> request_api_error(client)
     end
@@ -102,13 +130,18 @@ defmodule RatchetWrench do
   end
 
   def database_id() do
-    {database_id, _other} =Regex.split(~r{/}, RatchetWrench.database()) |> List.pop_at(5)
+    {database_id, _other} = Regex.split(~r{/}, RatchetWrench.database()) |> List.pop_at(5)
     database_id
   end
 
   def begin_transaction(connection, session) do
-    json = %{options: %{readWrite: %{}} }
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_begin_transaction(connection, session.name, [{:body, json}]) do
+    json = %{options: %{readWrite: %{}}}
+
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_begin_transaction(
+           connection,
+           session.name,
+           [{:body, json}]
+         ) do
       {:ok, transaction} -> {:ok, transaction}
       {:error, client} -> request_api_error(client)
     end
@@ -116,7 +149,12 @@ defmodule RatchetWrench do
 
   def rollback_transaction(connection, session, transaction) do
     json = %{transactionId: transaction.id}
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_rollback(connection, session.name, [{:body, json}]) do
+
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_rollback(
+           connection,
+           session.name,
+           [{:body, json}]
+         ) do
       {:ok, empty} -> {:ok, empty}
       {:error, client} -> request_api_error(client)
     end
@@ -125,37 +163,65 @@ defmodule RatchetWrench do
   def commit_transaction(connection, session, transaction) do
     RatchetWrench.Logger.info("Commit transaction request, transaction_id: #{transaction.id}")
     json = %{transactionId: transaction.id}
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_commit(connection, session.name, [{:body, json}]) do
+
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_commit(
+           connection,
+           session.name,
+           [{:body, json}]
+         ) do
       {:ok, commit_response} ->
-        RatchetWrench.Logger.info("Commited transaction, transaction_id: #{transaction.id}, time_stamp: #{commit_response.commitTimestamp}")
+        RatchetWrench.Logger.info(
+          "Commited transaction, transaction_id: #{transaction.id}, time_stamp: #{
+            commit_response.commitTimestamp
+          }"
+        )
+
         {:ok, commit_response}
-      {:error, client} -> request_api_error(client)
+
+      {:error, client} ->
+        request_api_error(client)
     end
   end
 
   def select_execute_sql(sql, params, retry_count \\ 0) do
     json = %{sql: sql, params: params}
-    connection = RatchetWrench.token |> RatchetWrench.connection
+    connection = RatchetWrench.token() |> RatchetWrench.connection()
     session = RatchetWrench.SessionPool.checkout()
 
     try do
       if session == :error do
         raise RatchetWrench.Exception.EmptyIdleSessionAndMaxSession
       else
-        case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
+        case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(
+               connection,
+               session.name,
+               [{:body, json}]
+             ) do
           {:ok, result_set} ->
             RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(session)
             |> RatchetWrench.SessionPool.checkin()
+
             {:ok, result_set}
+
           {:error, client} ->
             if is_retry_response?(client) do
-              if @retry_count_limit >= retry_count  do
-                Logger.error("Retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+              if @retry_count_limit >= retry_count do
+                Logger.error(
+                  "Retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{
+                    retry_count
+                  } }"
+                )
+
                 RatchetWrench.SessionPool.checkin(session)
                 retry_sleep(client, retry_count)
                 select_execute_sql(sql, params, retry_count + 1)
               else
-                Logger.error("Give up retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{retry_count} }")
+                Logger.error(
+                  "Give up retry select_execute_sql: { sql: #{sql}, params: #{params}, retry_count: #{
+                    retry_count
+                  } }"
+                )
+
                 RatchetWrench.SessionPool.checkin(session)
                 request_api_error(client)
               end
@@ -173,6 +239,7 @@ defmodule RatchetWrench do
       err in RatchetWrench.Exception.EmptyIdleSessionAndMaxSession ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
         {:error, err}
+
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
         {:error, err}
@@ -204,26 +271,34 @@ defmodule RatchetWrench do
   end
 
   def do_execute_sql(sql, params, param_types) do
-    connection = RatchetWrench.token |> RatchetWrench.connection
+    connection = RatchetWrench.token() |> RatchetWrench.connection()
     transaction = RatchetWrench.TransactionManager.get_or_begin_transaction()
 
     session = transaction.session
 
-    json = %{seqno: transaction.seqno,
-             transaction: %{id: transaction.transaction.id},
-             sql: sql,
-             params: params,
-             paramTypes: param_types}
+    json = %{
+      seqno: transaction.seqno,
+      transaction: %{id: transaction.transaction.id},
+      sql: sql,
+      params: params,
+      paramTypes: param_types
+    }
 
-    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(connection, session.name, [{:body, json}]) do
+    case GoogleApi.Spanner.V1.Api.Projects.spanner_projects_instances_databases_sessions_execute_sql(
+           connection,
+           session.name,
+           [{:body, json}]
+         ) do
       {:ok, result_set} ->
         RatchetWrench.TransactionManager.countup_seqno(transaction)
         {:ok, result_set}
+
       {:error, client} ->
         if RatchetWrench.TransactionManager.exist_transaction?() do
           if is_retry_response?(client) do
             raise RatchetWrench.Exception.APIRequestError, client
           end
+
           {:error, client}
         else
           {:error, client}
@@ -236,34 +311,81 @@ defmodule RatchetWrench do
     {:ok, result_set_list}
   end
 
-  def do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset \\ 0, seqno \\ 1, acc \\ []) do
+  def do_auto_limit_offset_execute_sql(
+        sql,
+        params,
+        params_type,
+        limit,
+        offset \\ 0,
+        seqno \\ 1,
+        acc \\ []
+      ) do
     limit_offset_sql = sql <> " LIMIT #{limit} OFFSET #{offset}"
 
     if RatchetWrench.TransactionManager.exist_transaction?() do
       case execute_sql(limit_offset_sql, params, params_type) do
         {:ok, result_set} ->
-          do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc)
+          do_auto_limit_offset_next_execute_sql(
+            result_set,
+            sql,
+            params,
+            params_type,
+            limit,
+            offset,
+            seqno,
+            acc
+          )
+
         {:error, exception} ->
           do_result_set_to_large(exception, sql, params, params_type, limit)
       end
     else
       case select_execute_sql(limit_offset_sql, params) do
         {:ok, result_set} ->
-          do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc)
+          do_auto_limit_offset_next_execute_sql(
+            result_set,
+            sql,
+            params,
+            params_type,
+            limit,
+            offset,
+            seqno,
+            acc
+          )
+
         {:error, exception} ->
           do_result_set_to_large(exception, sql, params, params_type, limit)
       end
     end
   end
 
-  defp do_auto_limit_offset_next_execute_sql(result_set, sql, params, params_type, limit, offset, seqno, acc) do
+  defp do_auto_limit_offset_next_execute_sql(
+         result_set,
+         sql,
+         params,
+         params_type,
+         limit,
+         offset,
+         seqno,
+         acc
+       ) do
     if result_set.rows == nil do
       {:ok, []}
     else
       result_set_list = acc ++ [result_set]
+
       if limit == Enum.count(result_set.rows) do
         offset = offset + limit
-        do_auto_limit_offset_execute_sql(sql, params, params_type, limit, offset, seqno + 1, result_set_list)
+
+        do_auto_limit_offset_execute_sql(
+          sql,
+          params,
+          params_type,
+          limit,
+          offset,
+          seqno + 1,
+          result_set_list
+        )
       else
         {:ok, result_set_list}
       end
@@ -274,6 +396,7 @@ defmodule RatchetWrench do
   defp do_result_set_to_large(exception, sql, params, params_type, limit) do
     try do
       reason = Poison.Parser.parse!(exception.client.body, %{})
+
       if reason["error"]["message"] == @too_large_error_message do
         limit = div(limit, 2)
         auto_limit_offset_execute_sql(sql, params, params_type, limit)
@@ -288,7 +411,7 @@ defmodule RatchetWrench do
   end
 
   def transaction!(callback, retry_count \\ 0) when is_function(callback) do
-    if RatchetWrench.TransactionManager.exist_transaction? do
+    if RatchetWrench.TransactionManager.exist_transaction?() do
       callback.()
     else
       try do
@@ -301,9 +424,11 @@ defmodule RatchetWrench do
           if is_retry_response?(err.client) do
             retry_transaction(callback, err, retry_count)
           else
-            if RatchetWrench.TransactionManager.exist_transaction? do
+            if RatchetWrench.TransactionManager.exist_transaction?() do
               case RatchetWrench.TransactionManager.rollback() do
-                {:ok, _} -> reraise(err, __STACKTRACE__)
+                {:ok, _} ->
+                  reraise(err, __STACKTRACE__)
+
                 {:error, rollback_error} ->
                   Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
                   reraise(err, __STACKTRACE__)
@@ -312,10 +437,13 @@ defmodule RatchetWrench do
               reraise(err, __STACKTRACE__)
             end
           end
+
         err in _ ->
-          if RatchetWrench.TransactionManager.exist_transaction? do
+          if RatchetWrench.TransactionManager.exist_transaction?() do
             case RatchetWrench.TransactionManager.rollback() do
-              {:ok, _} -> reraise(err, __STACKTRACE__)
+              {:ok, _} ->
+                reraise(err, __STACKTRACE__)
+
               {:error, rollback_error} ->
                 Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
                 reraise(err, __STACKTRACE__)
@@ -328,7 +456,7 @@ defmodule RatchetWrench do
   end
 
   def transaction(callback, retry_count \\ 0) when is_function(callback) do
-    if RatchetWrench.TransactionManager.exist_transaction? do
+    if RatchetWrench.TransactionManager.exist_transaction?() do
       callback.()
     else
       try do
@@ -341,9 +469,11 @@ defmodule RatchetWrench do
           if is_retry_response?(err.client) do
             retry_transaction(callback, err, retry_count)
           else
-            if RatchetWrench.TransactionManager.exist_transaction? do
+            if RatchetWrench.TransactionManager.exist_transaction?() do
               case RatchetWrench.TransactionManager.rollback() do
-                {:ok, _} -> {:error, err}
+                {:ok, _} ->
+                  {:error, err}
+
                 {:error, rollback_error} ->
                   Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
                   {:error, err}
@@ -352,10 +482,13 @@ defmodule RatchetWrench do
               {:error, err}
             end
           end
+
         err in _ ->
-          if RatchetWrench.TransactionManager.exist_transaction? do
+          if RatchetWrench.TransactionManager.exist_transaction?() do
             case RatchetWrench.TransactionManager.rollback() do
-              {:ok, _} -> {:error, err}
+              {:ok, _} ->
+                {:error, err}
+
               {:error, rollback_error} ->
                 Logger.error(Exception.format(:error, rollback_error, __STACKTRACE__))
                 {:error, err}
@@ -369,13 +502,23 @@ defmodule RatchetWrench do
 
   defp retry_transaction(callback, err, retry_count) when is_function(callback) do
     # TODO: Change loglevel to info
-    Logger.error("Retry transaction: { callback: #{inspect callback}, err: #{inspect err}, retry_count: #{retry_count} }")
-    if @retry_count_limit >= retry_count  do
+    Logger.error(
+      "Retry transaction: { callback: #{inspect(callback)}, err: #{inspect(err)}, retry_count: #{
+        retry_count
+      } }"
+    )
+
+    if @retry_count_limit >= retry_count do
       RatchetWrench.TransactionManager.delete_transaction()
       retry_sleep(err.client, retry_count)
       transaction(callback, retry_count + 1)
     else
-      Logger.error("Give up retry transaction: { callback: #{inspect callback}, err: #{inspect err}, retry_count: #{retry_count} }")
+      Logger.error(
+        "Give up retry transaction: { callback: #{inspect(callback)}, err: #{inspect(err)}, retry_count: #{
+          retry_count
+        } }"
+      )
+
       {:error, err}
     end
   end
@@ -385,6 +528,7 @@ defmodule RatchetWrench do
       if retry_count == 0 do
         json = parse_response_body(client)
         retry_delay_time = retry_delay(json)
+
         if retry_delay_time do
           Process.sleep(retry_delay_time)
         else
@@ -406,9 +550,11 @@ defmodule RatchetWrench do
 
   defp is_retry_response?(client) do
     json = parse_response_body(client)
+
     if json["error"]["code"] == @do_retry_http_status_code do
       if json["error"]["details"] do
         detail = List.first(json["error"]["details"])
+
         if detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" do
           true
         else
@@ -425,15 +571,18 @@ defmodule RatchetWrench do
   defp retry_delay(json) when is_map(json) do
     if json["error"]["code"] == @do_retry_http_status_code do
       detail = List.first(json["error"]["details"])
+
       if detail["@type"] == "type.googleapis.com/google.rpc.RetryInfo" do
-        detail["retryDelay"] # ex) "0.012063175s"
+        # ex) "0.012063175s"
+        detail["retryDelay"]
         |> parse_retry_delay()
       end
     end
   end
 
   defp parse_retry_delay(str) do
-    {time_microsecond, _s} = Float.parse(str) # ex) "0.012063175s"
-    Float.ceil(time_microsecond, 3) * 1_000 |> Kernel.trunc
+    # ex) "0.012063175s"
+    {time_microsecond, _s} = Float.parse(str)
+    (Float.ceil(time_microsecond, 3) * 1_000) |> Kernel.trunc()
   end
 end

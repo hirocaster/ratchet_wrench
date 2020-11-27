@@ -8,6 +8,7 @@ defmodule RatchetWrench.DateTimeTest do
   test ".now/0" do
     now_tz = System.get_env("TZ")
     now_datetime = RatchetWrench.DateTime.now()
+
     if now_tz == nil do
       assert now_datetime.time_zone == "Etc/UTC"
     else

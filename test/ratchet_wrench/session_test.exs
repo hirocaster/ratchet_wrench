@@ -15,9 +15,10 @@ defmodule RatchetWrench.SessionTest do
     setup do
       {:ok, env_database} = System.fetch_env("RATCHET_WRENCH_DATABASE")
       System.put_env("RATCHET_WRENCH_DATABASE", "bad/database/path")
-      on_exit fn ->
+
+      on_exit(fn ->
         System.put_env("RATCHET_WRENCH_DATABASE", env_database)
-      end
+      end)
     end
 
     test "Database path config error" do

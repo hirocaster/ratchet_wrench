@@ -52,7 +52,8 @@ defmodule RatchetWrench.Repo do
 
   def where_pk_sql(module) do
     pk_list = module.__pk__
-    Enum.reduce(pk_list, "", fn(pk_name, acc) ->
+
+    Enum.reduce(pk_list, "", fn pk_name, acc ->
       if acc == "" do
         "#{pk_name} = @#{pk_name}"
       else
@@ -63,8 +64,9 @@ defmodule RatchetWrench.Repo do
 
   def params_pk_map(module, pk_value_list) do
     pk_list = module.__pk__
+
     Enum.with_index(pk_list)
-    |> Enum.reduce(%{}, fn({pk_name, index}, acc) ->
+    |> Enum.reduce(%{}, fn {pk_name, index}, acc ->
       {value, _} = List.pop_at(pk_value_list, index)
       Map.merge(acc, Map.put(%{}, pk_name, value))
     end)
@@ -94,8 +96,12 @@ defmodule RatchetWrench.Repo do
             nil -> false
             _ -> raise "Unknown result from Repo.exists?"
           end
-        {:error, :rollback} -> {:error, :rollback}
-        {:error, exception} -> {:error, exception}
+
+        {:error, :rollback} ->
+          {:error, :rollback}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     else
       case RatchetWrench.select_execute_sql(sql, params) do
@@ -105,14 +111,17 @@ defmodule RatchetWrench.Repo do
             nil -> false
             _ -> raise "Unknown result from Repo.exists?"
           end
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
 
   def sql_and_for_where(map) when is_map(map) do
     column_list = Map.keys(map)
-    Enum.reduce(column_list, "", fn(key, acc) ->
+
+    Enum.reduce(column_list, "", fn key, acc ->
       if acc == "" do
         acc <> " #{key} = @#{key}"
       else
@@ -134,8 +143,12 @@ defmodule RatchetWrench.Repo do
           else
             {:ok, convert_result_set_to_value_list(struct, result_set)}
           end
-        {:error, :rollback} -> {:error, :rollback}
-        {:error, exception} -> {:error, exception}
+
+        {:error, :rollback} ->
+          {:error, :rollback}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     else
       case RatchetWrench.select_execute_sql(sql, params) do
@@ -145,7 +158,9 @@ defmodule RatchetWrench.Repo do
           else
             {:ok, convert_result_set_to_value_list(struct, result_set)}
           end
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
@@ -186,7 +201,7 @@ defmodule RatchetWrench.Repo do
   end
 
   defp valid_insert_multiple?(module, structs) when is_list(structs) do
-    Enum.all?(structs, fn(s) -> s.__struct__ == module end)
+    Enum.all?(structs, fn s -> s.__struct__ == module end)
   end
 
   defp insert_multiple_parameters(module, structs) do
@@ -237,14 +252,15 @@ defmodule RatchetWrench.Repo do
   def insert!(struct) do
     case insert(struct) do
       {:ok, struct} -> {:ok, struct}
-       {:error, exception} -> raise exception
+      {:error, exception} -> raise exception
     end
   end
 
   def insert(struct) do
-    struct = struct
-             |> set_uuid_value()
-             |> set_timestamps()
+    struct =
+      struct
+      |> set_uuid_value()
+      |> set_timestamps()
 
     sql = insert_sql(struct)
     params = convert_to_params(struct)
@@ -262,13 +278,16 @@ defmodule RatchetWrench.Repo do
             {:ok, _result} -> {:ok, struct}
             {:error, exception} -> {:error, exception}
           end
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
 
   defp set_timestamps(struct) do
     now_timestamp = RatchetWrench.DateTime.now()
+
     struct
     |> set_inserted_at_value(now_timestamp)
     |> set_updated_at_value(now_timestamp)
@@ -282,9 +301,11 @@ defmodule RatchetWrench.Repo do
     column_list = Map.keys(map)
     column_list_string = Enum.join(column_list, ", ")
 
-    values_list_string = Enum.reduce(map, [], fn({key, _value}, acc) ->
-                           acc ++ ["@#{key}"]
-                         end) |> Enum.join(", ")
+    values_list_string =
+      Enum.reduce(map, [], fn {key, _value}, acc ->
+        acc ++ ["@#{key}"]
+      end)
+      |> Enum.join(", ")
 
     "INSERT INTO #{table_name}(#{column_list_string}) VALUES(#{values_list_string})"
   end
@@ -300,25 +321,25 @@ defmodule RatchetWrench.Repo do
   end
 
   defp do_convert_to_params(map) when is_map(map) do
-    Enum.reduce(map, %{}, fn({key, value}, acc) ->
+    Enum.reduce(map, %{}, fn {key, value}, acc ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
     end)
   end
 
   def params_update_values_map(struct) do
     struct
-    |> Map.from_struct
-    |> Enum.reduce(%{}, fn({key, value}, acc) ->
+    |> Map.from_struct()
+    |> Enum.reduce(%{}, fn {key, value}, acc ->
       Map.merge(acc, Map.put(%{}, key, convert_value(value)))
-      end)
+    end)
   end
 
   def param_types(module) do
     module.__attributes__
-    |> Enum.reduce(%{}, fn({key, {type, _default}}, acc) ->
-       # Map.merge(acc, Map.put(%{}, key,  %GoogleApi.Spanner.V1.Model.Type{code: type}))
-       Map.merge(acc, Map.put(%{}, key,  %{code: type}))
-       end)
+    |> Enum.reduce(%{}, fn {key, {type, _default}}, acc ->
+      # Map.merge(acc, Map.put(%{}, key,  %GoogleApi.Spanner.V1.Model.Type{code: type}))
+      Map.merge(acc, Map.put(%{}, key, %{code: type}))
+    end)
   end
 
   def set!(struct) when is_map(struct) do
@@ -328,7 +349,7 @@ defmodule RatchetWrench.Repo do
     end
   end
 
-  def set(struct) when is_map(struct)do
+  def set(struct) when is_map(struct) do
     do_set(struct)
   end
 
@@ -342,7 +363,9 @@ defmodule RatchetWrench.Repo do
       case RatchetWrench.execute_sql(sql, params, param_types) do
         {:ok, _} ->
           {:ok, struct}
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     else
       case RatchetWrench.transaction(fn -> RatchetWrench.execute_sql(sql, params, param_types) end) do
@@ -351,7 +374,9 @@ defmodule RatchetWrench.Repo do
             {:ok, _result} -> {:ok, struct}
             {:error, exception} -> {:error, exception}
           end
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
@@ -361,16 +386,16 @@ defmodule RatchetWrench.Repo do
     set_updated_at_value(struct, now_timestamp)
   end
 
-
   def update_sql(struct) do
     table_name = struct.__struct__.__table_name__
 
     map = Map.from_struct(struct) |> remove_pk(struct) |> remove_interleave(struct)
 
-
-    values_list_string = Enum.reduce(map, [], fn({key, _value}, acc) ->
-                           acc ++ ["#{key} = @#{key}"]
-                         end) |> Enum.join(", ")
+    values_list_string =
+      Enum.reduce(map, [], fn {key, _value}, acc ->
+        acc ++ ["#{key} = @#{key}"]
+      end)
+      |> Enum.join(", ")
 
     base_sql = "UPDATE #{table_name} SET #{values_list_string} WHERE "
     base_sql <> where_pk_sql(struct.__struct__)
@@ -378,14 +403,16 @@ defmodule RatchetWrench.Repo do
 
   def remove_pk(map, struct) do
     pk_list = struct.__struct__.__pk__
-    Enum.reduce(pk_list, map, fn(pk_key, acc) ->
+
+    Enum.reduce(pk_list, map, fn pk_key, acc ->
       Map.delete(acc, pk_key)
     end)
   end
 
   def remove_interleave(map, struct) do
     interleave_list = struct.__struct__.__interleave__
-    Enum.reduce(interleave_list, map, fn(interleave_key, acc) ->
+
+    Enum.reduce(interleave_list, map, fn interleave_key, acc ->
       Map.delete(acc, interleave_key)
     end)
   end
@@ -423,7 +450,9 @@ defmodule RatchetWrench.Repo do
             {:ok, result_set} -> {:ok, result_set}
             {:error, exception} -> {:error, exception}
           end
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
@@ -457,12 +486,14 @@ defmodule RatchetWrench.Repo do
       end
     else
       case RatchetWrench.transaction(fn -> RatchetWrench.execute_sql(sql, params, param_types) end) do
-          {:ok, result} ->
-            case result do
-              {:ok, result_set} -> {:ok, result_set.rows}
-              {:error, exception} -> {:error, exception}
-            end
-          {:error, exception} -> {:error, exception}
+        {:ok, result} ->
+          case result do
+            {:ok, result_set} -> {:ok, result_set.rows}
+            {:error, exception} -> {:error, exception}
+          end
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
@@ -492,13 +523,17 @@ defmodule RatchetWrench.Repo do
       case RatchetWrench.execute_sql(sql, params, param_types) do
         {:ok, result_set} ->
           {:ok, parse_count_result_set(result_set)}
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     else
       case RatchetWrench.select_execute_sql(sql, params) do
         {:ok, result_set} ->
           {:ok, parse_count_result_set(result_set)}
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
@@ -528,13 +563,17 @@ defmodule RatchetWrench.Repo do
       case RatchetWrench.execute_sql(sql, params, param_types) do
         {:ok, result_set} ->
           {:ok, parse_count_result_set(result_set)}
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     else
       case RatchetWrench.select_execute_sql(sql, params) do
         {:ok, result_set} ->
           {:ok, parse_count_result_set(result_set)}
-        {:error, exception} -> {:error, exception}
+
+        {:error, exception} ->
+          {:error, exception}
       end
     end
   end
@@ -546,7 +585,8 @@ defmodule RatchetWrench.Repo do
 
   defp where_sql(where) when is_map(where) do
     keys = Map.keys(where)
-    Enum.reduce(keys, "", fn(key_name, acc) ->
+
+    Enum.reduce(keys, "", fn key_name, acc ->
       if acc == "" do
         "#{key_name} = @#{key_name}"
       else
@@ -556,14 +596,17 @@ defmodule RatchetWrench.Repo do
   end
 
   defp parse_count_result_set(result_set) do
-    {count, _} = result_set.rows
+    {count, _} =
+      result_set.rows
       |> List.first()
       |> List.first()
       |> Integer.parse()
+
     count
   end
 
-  def all(struct, where_sql, params) when is_map(struct) and is_binary(where_sql) and is_map(params) do
+  def all(struct, where_sql, params)
+      when is_map(struct) and is_binary(where_sql) and is_map(params) do
     try do
       table_name = to_table_name(struct)
       sql = "SELECT * FROM #{table_name} WHERE #{where_sql}"
@@ -572,7 +615,7 @@ defmodule RatchetWrench.Repo do
     rescue
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
-      {:error, err}
+        {:error, err}
     end
   end
 
@@ -592,29 +635,34 @@ defmodule RatchetWrench.Repo do
   def do_all(struct, sql, params) do
     param_types = param_types(struct.__struct__)
     {:ok, result_set_list} = RatchetWrench.auto_limit_offset_execute_sql(sql, params, param_types)
-    Enum.reduce(result_set_list, [], fn(result_set, acc) ->
+
+    Enum.reduce(result_set_list, [], fn result_set, acc ->
       acc ++ convert_result_set_to_value_list(struct, result_set)
     end)
   end
 
   # %{ name: type, name: type}
   def convert_metadata_rowtype_fields_to_map(fields) do
-    Enum.reduce(fields, %{}, fn(field, acc) -> Map.merge(acc, %{"#{field.name}": field.type.code}) end)
+    Enum.reduce(fields, %{}, fn field, acc ->
+      Map.merge(acc, %{"#{field.name}": field.type.code})
+    end)
   end
 
   def convert_result_set_to_value_list(struct, result_set) do
-    converted_rows = Enum.map(result_set.rows, fn(row) ->
-      converted_row_list = Enum.map(Enum.with_index(result_set.metadata.rowType.fields), fn({field, index}) ->
-                               name = field.name
-                               type = field.type.code
-                               value =  Enum.at(row, index)
-                               converted_value = convert_value_type(value, type)
-                               %{"#{name}": converted_value}
-                             end)
+    converted_rows =
+      Enum.map(result_set.rows, fn row ->
+        converted_row_list =
+          Enum.map(Enum.with_index(result_set.metadata.rowType.fields), fn {field, index} ->
+            name = field.name
+            type = field.type.code
+            value = Enum.at(row, index)
+            converted_value = convert_value_type(value, type)
+            %{"#{name}": converted_value}
+          end)
 
-      row_map = Enum.reduce(converted_row_list, %{}, fn(x, acc) -> Map.merge(x, acc) end)
-      Map.merge(struct, row_map)
-    end)
+        row_map = Enum.reduce(converted_row_list, %{}, fn x, acc -> Map.merge(x, acc) end)
+        Map.merge(struct, row_map)
+      end)
 
     converted_rows
   end
@@ -639,7 +687,7 @@ defmodule RatchetWrench.Repo do
     end
   end
 
-  def set_inserted_at_value(struct, now_timestamp \\ RatchetWrench.DateTime.now) do
+  def set_inserted_at_value(struct, now_timestamp \\ RatchetWrench.DateTime.now()) do
     if Map.has_key?(struct, :inserted_at) do
       Map.merge(struct, %{inserted_at: now_timestamp})
     else
@@ -647,7 +695,7 @@ defmodule RatchetWrench.Repo do
     end
   end
 
-  def set_updated_at_value(struct, now_timestamp \\ RatchetWrench.DateTime.now) do
+  def set_updated_at_value(struct, now_timestamp \\ RatchetWrench.DateTime.now()) do
     if Map.has_key?(struct, :updated_at) do
       Map.merge(struct, %{updated_at: now_timestamp})
     else
@@ -658,6 +706,7 @@ defmodule RatchetWrench.Repo do
   def convert_value(value) when is_nil(value), do: value
   def convert_value(value) when is_float(value), do: value
   def convert_value(value) when is_integer(value), do: Integer.to_string(value)
+
   def convert_value(value) when is_boolean(value) do
     if value do
       true
@@ -665,6 +714,7 @@ defmodule RatchetWrench.Repo do
       false
     end
   end
+
   def convert_value(value) do
     if is_map(value) do
       if Map.has_key?(value, :__struct__) do
@@ -693,18 +743,18 @@ defmodule RatchetWrench.Repo do
       # "ARRAY" -> convert_array(value)
       # "BYTES" -> convert_bytes(value)
       # "STRUCT" -> convert_struct(value)
-      "STRING"    -> convert_string(value)
-      "DATE"      -> convert_date(value)
-      "BOOL"      -> convert_bool(value)
-      "INT64"     -> convert_int64(value)
-      "FLOAT64"   -> convert_float64(value)
+      "STRING" -> convert_string(value)
+      "DATE" -> convert_date(value)
+      "BOOL" -> convert_bool(value)
+      "INT64" -> convert_int64(value)
+      "FLOAT64" -> convert_float64(value)
       "TIMESTAMP" -> convert_timestamp(value)
-      _           -> raise "unsupport type at def convet_value_type in RatchetWrench"
+      _ -> raise "unsupport type at def convet_value_type in RatchetWrench"
     end
   end
 
-
   def convert_string(value) when is_nil(value), do: nil
+
   def convert_string(value) do
     if is_binary(value) do
       value
@@ -715,13 +765,17 @@ defmodule RatchetWrench.Repo do
 
   def convert_date(value) do
     case value do
-      nil -> nil
-      _ -> {:ok, date} = Date.from_iso8601(value)
-           date
+      nil ->
+        nil
+
+      _ ->
+        {:ok, date} = Date.from_iso8601(value)
+        date
     end
   end
 
   def convert_bool(value) when is_nil(value), do: nil
+
   def convert_bool(value) do
     case value do
       true -> true
@@ -737,11 +791,12 @@ defmodule RatchetWrench.Repo do
   def convert_float64(value) when is_float(value), do: value
 
   def convert_timestamp(value) when is_nil(value), do: nil
+
   def convert_timestamp(value) when is_binary(value) do
     {:ok, timestamp, _} = DateTime.from_iso8601(value)
     tz = System.get_env("TZ")
 
-    if tz == nil  do
+    if tz == nil do
       timestamp |> RatchetWrench.DateTime.add_suffix_zero()
     else
       {:ok, datetime} = DateTime.shift_zone(timestamp, tz, Tzdata.TimeZoneDatabase)

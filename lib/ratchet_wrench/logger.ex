@@ -21,7 +21,7 @@ defmodule RatchetWrench.Logger do
     if System.get_env("RATCHET_WRENCH_ENABLE_LOGGING") do
       true
     else
-      if Application.fetch_env(:ratchet_wrench, :enable_logging)  == :error do
+      if Application.fetch_env(:ratchet_wrench, :enable_logging) == :error do
         nil
       else
         true

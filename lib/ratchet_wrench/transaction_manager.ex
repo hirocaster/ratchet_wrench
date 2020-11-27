@@ -9,11 +9,14 @@ defmodule RatchetWrench.TransactionManager do
   end
 
   def countup_seqno(transaction) do
-      seqno = transaction.seqno
-      transaction = transaction
-                    |> Map.merge(%{seqno: seqno + 1})
-      put_transaction(transaction)
+    seqno = transaction.seqno
+
+    transaction =
       transaction
+      |> Map.merge(%{seqno: seqno + 1})
+
+    put_transaction(transaction)
+    transaction
   end
 
   def begin!() do
@@ -31,7 +34,9 @@ defmodule RatchetWrench.TransactionManager do
         {:ok, transaction} ->
           put_transaction(transaction)
           {:ok, transaction}
-        {:error, err} -> {:error, err}
+
+        {:error, err} ->
+          {:error, err}
       end
     else
       {:ok, transaction}
@@ -48,7 +53,9 @@ defmodule RatchetWrench.TransactionManager do
       else
         case RatchetWrench.begin_transaction(connection, session) do
           {:ok, cloudspanner_transaction} ->
-            {:ok, %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
+            {:ok,
+             %RatchetWrench.Transaction{session: session, transaction: cloudspanner_transaction}}
+
           {:error, err} ->
             RatchetWrench.SessionPool.checkin(session)
             {:error, err}
@@ -58,6 +65,7 @@ defmodule RatchetWrench.TransactionManager do
       err in RatchetWrench.Exception.EmptyIdleSessionAndMaxSession ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
         {:error, err}
+
       err in _ ->
         Logger.error(Exception.format(:error, err, __STACKTRACE__))
         RatchetWrench.SessionPool.checkin(session)
@@ -96,7 +104,12 @@ defmodule RatchetWrench.TransactionManager do
 
   defp update_approximate_last_use_time_in_transaction() do
     transaction = get_transaction()
-    updated_session = RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(transaction.session)
+
+    updated_session =
+      RatchetWrench.SessionPool.only_update_approximate_last_use_time_from_now(
+        transaction.session
+      )
+
     updated_transaction = Map.merge(transaction, %{session: updated_session})
     put_transaction(updated_transaction)
     updated_transaction
@@ -136,13 +149,16 @@ defmodule RatchetWrench.TransactionManager do
         update_approximate_last_use_time_in_transaction()
         delete_transaction()
         {:ok, commit_response}
-      {:error, err} -> {:error, err}
+
+      {:error, err} ->
+        {:error, err}
     end
   end
 
   defp commit_transaction(transaction) do
     connection = RatchetWrench.token_data() |> RatchetWrench.connection()
     session = transaction.session
+
     case RatchetWrench.commit_transaction(connection, session, transaction.transaction) do
       {:ok, commit_response} -> {:ok, commit_response}
       {:error, err} -> {:error, err}
