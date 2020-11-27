@@ -7,6 +7,7 @@ defmodule RatchetWrench.SessionPool do
   @session_max 300
   @session_bust_num 100
   @session_bust_checkout_percent_num 0.2
+  @session_timeout 60 * 60 # 1h
   @batch_create_session_max 100 # Specification of Google CloudSpanner
 
 
@@ -82,6 +83,34 @@ defmodule RatchetWrench.SessionPool do
       true
     else
       false
+    end
+  end
+
+  def is_timeout_session?(session) do
+    session_use_time = DateTime.diff(DateTime.utc_now, session.approximateLastUseTime)
+    if session_use_time > @session_timeout do
+      true
+    else
+      false
+    end
+  end
+
+  def timeout_session_cleaner(pool) do
+    checkout_sessions_list = pool.checkout
+    checkout_sessions_list_count = Enum.count(checkout_sessions_list)
+
+    not_timeout_session_list = Enum.filter(checkout_sessions_list, fn session -> !is_timeout_session?(session) end)
+    not_timeout_session_list_count = Enum.count(not_timeout_session_list)
+
+    pool = Map.merge(pool, %{checkout: not_timeout_session_list})
+
+    timeout_sessions_count = checkout_sessions_list_count - not_timeout_session_list_count
+
+    if timeout_sessions_count > 0 do
+      sessions = session_batch_create(timeout_sessions_count)
+      Map.merge(pool, %{idle: pool.idle ++ sessions})
+    else
+      pool
     end
   end
 
@@ -189,7 +218,7 @@ defmodule RatchetWrench.SessionPool do
   def handle_info(:session_pool_monitor, pool) do
     # IO.inspect pool
     set_interval()
-    {:noreply, session_bust(pool)}
+    {:noreply, timeout_session_cleaner(pool) |> session_bust()}
   end
 
   @impl GenServer

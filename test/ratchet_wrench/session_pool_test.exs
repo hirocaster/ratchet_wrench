@@ -325,6 +325,36 @@ defmodule RatchetWrench.SessionPoolTest do
     assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 0
   end
 
+  test "timeout_session_cleaner/1" do
+    new_sessions = RatchetWrench.SessionPool.session_batch_create(2)
+    new_session1 = List.first(new_sessions)
+    new_session2 = List.last(new_sessions)
+
+    timeout_session = %GoogleApi.Spanner.V1.Model.Session{
+      approximateLastUseTime: ~U[2020-11-26 08:52:21.686282Z],
+      createTime: ~U[2020-11-26 08:52:21.683562Z],
+      labels: nil,
+      name: "projects/example-project/instances/dev-instance/databases/dev-db/sessions/SessioNname"
+    }
+
+    pool = %RatchetWrench.Pool{idle: [new_session1], checkout: [new_session2, timeout_session]}
+
+    assert RatchetWrench.SessionPool.is_safe_session?(new_session1)
+    assert RatchetWrench.SessionPool.is_safe_session?(new_session2)
+    refute RatchetWrench.SessionPool.is_safe_session?(timeout_session)
+
+    assert Enum.count(pool.idle) == 1
+    assert Enum.count(pool.checkout) == 2
+
+    clean_pool = RatchetWrench.SessionPool.timeout_session_cleaner(pool)
+
+    assert Enum.count(clean_pool.idle) == 2
+    assert Enum.count(clean_pool.checkout) == 1
+
+    RatchetWrench.SessionPool.delete_session(new_session1)
+    RatchetWrench.SessionPool.delete_session(new_session2)
+  end
+
   # test "loop replace sessions in pool" do
   #   loop()
   # end
