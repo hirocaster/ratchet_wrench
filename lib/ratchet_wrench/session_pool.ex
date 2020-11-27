@@ -112,16 +112,7 @@ defmodule RatchetWrench.SessionPool do
 
     not_timeout_session_list_count = Enum.count(not_timeout_session_list)
 
-    pool = Map.merge(pool, %{checkout: not_timeout_session_list})
-
-    timeout_sessions_count = checkout_sessions_list_count - not_timeout_session_list_count
-
-    if timeout_sessions_count > 0 do
-      sessions = session_batch_create(timeout_sessions_count)
-      Map.merge(pool, %{idle: pool.idle ++ sessions})
-    else
-      pool
-    end
+    Map.merge(pool, %{checkout: not_timeout_session_list})
   end
 
   @spec update_approximate_last_use_time(GoogleApi.Spanner.V1.Model.Session.t()) ::
@@ -180,13 +171,17 @@ defmodule RatchetWrench.SessionPool do
     if total_session_count >= session_max() do
       false
     else
-      if total_session_count == 0 or idle_session_count == 0 do
+      if total_session_count < session_min() do
         true
       else
-        if checkout_session_count / total_session_count >= @session_bust_checkout_percent_num do
+        if total_session_count == 0 or idle_session_count == 0 do
           true
         else
-          false
+          if checkout_session_count / total_session_count >= @session_bust_checkout_percent_num do
+            true
+          else
+            false
+          end
         end
       end
     end

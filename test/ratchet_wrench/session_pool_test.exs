@@ -234,6 +234,9 @@ defmodule RatchetWrench.SessionPoolTest do
   end
 
   test "should_session_bust?/1" do
+    should_bust_pool = %RatchetWrench.Pool{idle: [1], checkout: []}
+    assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
+
     should_bust_pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3]}
     assert RatchetWrench.SessionPool.should_session_bust?(should_bust_pool)
 
@@ -337,6 +340,9 @@ defmodule RatchetWrench.SessionPoolTest do
   end
 
   test "calculation_session_bust_num/1" do
+    pool = %RatchetWrench.Pool{idle: [], checkout: []}
+    assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 10
+
     pool = %RatchetWrench.Pool{idle: [], checkout: [1, 2, 3]}
     assert RatchetWrench.SessionPool.calculation_session_bust_num(pool) == 10
 
