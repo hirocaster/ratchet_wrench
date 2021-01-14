@@ -145,12 +145,6 @@ defmodule RatchetWrench.SessionPool do
   end
 
   def session_bust(pool) do
-    Logger.info(
-      "Call session_bust/1, idle: #{Enum.count(pool.idle)}, checkout: #{Enum.count(pool.checkout)}, should_session_bust?/1: #{
-        should_session_bust?(pool)
-      }, bust_num: #{calculation_session_bust_num(pool)}"
-    )
-
     if should_session_bust?(pool) do
       sessions_list =
         pool
