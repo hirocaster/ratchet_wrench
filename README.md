@@ -1,8 +1,8 @@
 # RatchetWrench
 
-** This library alpha level version. Not use in production. **
-
 RatchetWrench is a easily use Google Cloud Spanner by Elixir.
+
+** This library production use in the mobile game. But does not fully support the "Google Cloud spanner" feature. **
 
 ## Installation
 
