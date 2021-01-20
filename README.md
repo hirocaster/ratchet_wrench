@@ -12,7 +12,7 @@ by adding `ratchet_wrench` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ratchet_wrench, "~> 0.0.1"}
+    {:ratchet_wrench, "~> 0.4.0"}
   ]
 end
 ```
