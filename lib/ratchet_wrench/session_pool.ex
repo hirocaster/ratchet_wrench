@@ -105,12 +105,9 @@ defmodule RatchetWrench.SessionPool do
 
   def timeout_session_cleaner(pool) do
     checkout_sessions_list = pool.checkout
-    checkout_sessions_list_count = Enum.count(checkout_sessions_list)
 
     not_timeout_session_list =
       Enum.filter(checkout_sessions_list, fn session -> !is_timeout_session?(session) end)
-
-    not_timeout_session_list_count = Enum.count(not_timeout_session_list)
 
     Map.merge(pool, %{checkout: not_timeout_session_list})
   end
