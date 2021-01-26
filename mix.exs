@@ -4,7 +4,7 @@ defmodule RatchetWrench.MixProject do
   def project do
     [
       app: :ratchet_wrench,
-      version: "0.4.0",
+      version: "0.4.1",
       elixir: "~> 1.10",
       description: "RatchetWrench is a easily use Google Cloud Spanner by Elixir.",
       package: [
