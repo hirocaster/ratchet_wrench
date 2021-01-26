@@ -389,7 +389,7 @@ defmodule RatchetWrench.SessionPoolTest do
 
     clean_pool = RatchetWrench.SessionPool.timeout_session_cleaner(pool)
 
-    assert Enum.count(clean_pool.idle) == 2
+    assert Enum.count(clean_pool.idle) == 1
     assert Enum.count(clean_pool.checkout) == 1
 
     RatchetWrench.SessionPool.delete_session(new_session1)
